@@ -1,6 +1,8 @@
 # frontend
 
-React + TypeScript UI. Communicates with the backend API only — never directly with Python services.
+> Up: [root CLAUDE.md](../CLAUDE.md) · Sibling services: [`backend/`](../backend/CLAUDE.md), [`services/predictions/`](../services/predictions/CLAUDE.md)
+
+React + TypeScript UI. Communicates with the [backend API](../backend/CLAUDE.md) only — never directly with the [Python prediction service](../services/predictions/CLAUDE.md).
 
 ## Commands
 
@@ -18,10 +20,11 @@ Full architecture docs live in `docs/`:
 
 | File | Contents |
 |------|----------|
-| `docs/architecture.md` | Stack, directory layout, routing, data layer, auth strategy, theming |
-| `docs/pages.md` | Every page with purpose, components, data dependencies, behavior |
-| `docs/components.md` | Shared components: layout, charts, transactions, accounts, primitives |
-| `docs/flows.md` | Sequence diagrams for register/login, OAuth, protected routes, CSV import |
+| [`docs/architecture.md`](./docs/architecture.md) | Stack, directory layout, routing, data layer, auth strategy, theming |
+| [`docs/pages.md`](./docs/pages.md) | Every page with purpose, components, data dependencies, behavior |
+| [`docs/components.md`](./docs/components.md) | Shared components: layout, charts, transactions, accounts, primitives |
+| [`docs/flows.md`](./docs/flows.md) | Sequence diagrams for register/login, OAuth, protected routes, CSV import |
+| [`docs/design-system.md`](./docs/design-system.md) | Locked design tokens, typography, semantic-color rules (single source of truth) |
 
 ## Stack
 
@@ -31,6 +34,12 @@ Full architecture docs live in `docs/`:
 - React Router for routing
 - Recharts for visualizations
 - Auth: httpOnly cookies (set by backend) — fetches use `credentials: 'include'`
+
+## Design system
+
+**Warm Coin / Bronze-Gold** — amber `primary`, teal `accent`, rust `destructive`, cream/espresso backgrounds, Fraunces (display) + Inter (body) self-hosted via `@fontsource`. Full token reference in [`docs/design-system.md`](./docs/design-system.md).
+
+Semantic-color rule (do not violate): brand color is amber (`primary`); positive money is teal (`income`); negative money is rust (`expense` / `destructive`). Never mix these uses — amber is **never** used to mean "income," and teal is **never** used for destructive actions. Don't reach for raw Tailwind palette colors (`bg-emerald-500`, `text-amber-400`, etc.); always go through theme tokens so dark mode and future palette tweaks keep working.
 
 ## Structure
 

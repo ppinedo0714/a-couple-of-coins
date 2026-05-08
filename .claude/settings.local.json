@@ -5,7 +5,9 @@
       "Bash(npm create *)",
       "Bash(npm install *)",
       "Bash(curl -s http://localhost:3000/)",
-      "Bash(curl *)"
+      "Bash(curl *)",
+      "Bash(Get-ChildItem *)",
+      "Bash(npm *)"
     ]
   }
 }

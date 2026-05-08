@@ -1,6 +1,8 @@
 # services/predictions
 
-Python FastAPI service for predictive budget analytics. Called by the backend API — not exposed directly to the frontend.
+> Up: [root CLAUDE.md](../../CLAUDE.md) · Sibling services: [`frontend/`](../../frontend/CLAUDE.md), [`backend/`](../../backend/CLAUDE.md)
+
+Python FastAPI service for predictive budget analytics. Called by the [backend API](../../backend/CLAUDE.md) — not exposed directly to the [frontend](../../frontend/CLAUDE.md).
 
 ## Commands
 

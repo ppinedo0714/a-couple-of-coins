@@ -157,6 +157,8 @@ Tailwind's `darkMode: 'class'` strategy. The `<html>` element gets a `dark` clas
 
 The toggle lives in the profile dropdown (`components/layout/ProfileMenu.tsx`).
 
+The design system is **Warm Coin / Bronze-Gold** and is locked: amber `primary`, teal `accent`, rust `destructive`, cream/espresso backgrounds, Fraunces (display) + Inter (body) typography, `--radius: 0.5rem`. Tokens, semantic rules (income vs. expense vs. brand), and chart conventions are documented in [`docs/design-system.md`](./design-system.md). Don't introduce raw palette colors (`bg-emerald-500`, `text-amber-400`, etc.) — always go through the theme tokens.
+
 ## Mobile Responsiveness
 
 - Tailwind breakpoints: `sm` (640px), `md` (768px), `lg` (1024px)

@@ -26,13 +26,13 @@ See each service's own CLAUDE.md for per-service commands.
 
 ## Services
 
-| Directory | Language | Role |
-|-----------|----------|------|
-| `frontend/` | TypeScript (React + Vite) | User interface |
-| `backend/` | Go | REST API, data layer |
-| `services/predictions/` | Python (FastAPI) | Predictive analytics |
+| Directory | Language | Role | Service guide |
+|-----------|----------|------|---------------|
+| `frontend/` | TypeScript (React + Vite) | User interface | [`frontend/CLAUDE.md`](./frontend/CLAUDE.md) |
+| `backend/` | Go | REST API, data layer | [`backend/CLAUDE.md`](./backend/CLAUDE.md) |
+| `services/predictions/` | Python (FastAPI) | Predictive analytics | [`services/predictions/CLAUDE.md`](./services/predictions/CLAUDE.md) |
 
-Read each service's `CLAUDE.md` for its commands, structure, and conventions.
+Each service's `CLAUDE.md` is the entry point to its commands, structure, conventions, and (for `frontend/` and `backend/`) a `docs/` folder with deeper architecture, API, and data-model references.
 
 ## Shared conventions
 
@@ -40,3 +40,7 @@ Read each service's `CLAUDE.md` for its commands, structure, and conventions.
 - REST JSON APIs between all services
 - Env vars documented in `.env.example` — never commit `.env`
 - Tests: `*_test.go` (Go), co-located `*.test.ts` (frontend), `test_*.py` (Python)
+
+## Design
+
+The frontend uses a locked **Warm Coin / Bronze-Gold** design system. Any visual or brand change must update [`frontend/docs/design-system.md`](./frontend/docs/design-system.md) first — that file is the single source of truth for tokens, typography, and semantic-color rules.

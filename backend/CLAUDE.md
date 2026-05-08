@@ -1,6 +1,8 @@
 # backend
 
-Go REST API. The central data layer — serves the frontend and calls out to Python services as needed.
+> Up: [root CLAUDE.md](../CLAUDE.md) · Sibling services: [`frontend/`](../frontend/CLAUDE.md), [`services/predictions/`](../services/predictions/CLAUDE.md)
+
+Go REST API. The central data layer — serves the [React frontend](../frontend/CLAUDE.md) and calls out to the [Python prediction service](../services/predictions/CLAUDE.md) as needed. The frontend never talks to Python directly; all cross-service traffic flows through this API.
 
 ## Commands
 
@@ -18,10 +20,10 @@ Full architecture docs live in `docs/`:
 
 | File | Contents |
 |------|----------|
-| `docs/architecture.md` | System overview, directory layout, layer rules, dependencies |
-| `docs/data-model.md` | ERD and field-by-field table descriptions |
-| `docs/api.md` | Complete route reference with request/response shapes |
-| `docs/flows.md` | Sequence diagrams for auth, CSV import, and classification |
+| [`docs/architecture.md`](./docs/architecture.md) | System overview, directory layout, layer rules, dependencies |
+| [`docs/data-model.md`](./docs/data-model.md) | ERD and field-by-field table descriptions |
+| [`docs/api.md`](./docs/api.md) | Complete route reference with request/response shapes |
+| [`docs/flows.md`](./docs/flows.md) | Sequence diagrams for auth, CSV import, and classification |
 
 ## Structure
 
