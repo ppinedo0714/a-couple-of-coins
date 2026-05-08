@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(npx *)",
+      "Bash(pip install *)",
+      "Bash(pip freeze)",
+      "Bash(python *)",
+      "Bash(uvicorn *)",
+      "Bash(git log *)",
+      "Bash(git diff *)",
+      "Bash(git status)"
+    ]
+  }
+}
