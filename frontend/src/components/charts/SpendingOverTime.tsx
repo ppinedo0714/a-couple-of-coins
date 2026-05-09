@@ -1,0 +1,84 @@
+import { useMemo } from 'react'
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Legend,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts'
+import type { Transaction } from '@/types/models'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { EmptyState } from '@/components/shared/EmptyState'
+import { formatCurrency, formatShortDate } from '@/lib/format'
+
+type Props = {
+  transactions: Transaction[]
+}
+
+export function SpendingOverTime({ transactions }: Props) {
+  const data = useMemo(() => {
+    const byDay = new Map<string, { date: string; income: number; expense: number }>()
+    for (const tx of transactions) {
+      const entry = byDay.get(tx.date) ?? { date: tx.date, income: 0, expense: 0 }
+      if (tx.amount >= 0) entry.income += tx.amount
+      else entry.expense += Math.abs(tx.amount)
+      byDay.set(tx.date, entry)
+    }
+    return Array.from(byDay.values()).sort((a, b) => (a.date < b.date ? -1 : 1))
+  }, [transactions])
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Cash flow</CardTitle>
+        <CardDescription>Daily income vs. expense.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {data.length === 0 ? (
+          <EmptyState title="No activity in range" description="Try a wider date range." />
+        ) : (
+          <div className="h-64 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                <XAxis
+                  dataKey="date"
+                  tickFormatter={(v) => formatShortDate(v)}
+                  stroke="var(--muted-foreground)"
+                  fontSize={11}
+                  tickLine={false}
+                  axisLine={false}
+                  minTickGap={20}
+                />
+                <YAxis
+                  stroke="var(--muted-foreground)"
+                  fontSize={11}
+                  tickLine={false}
+                  axisLine={false}
+                  tickFormatter={(v) => `$${Math.round(Number(v))}`}
+                />
+                <Tooltip
+                  contentStyle={{
+                    background: 'var(--popover)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius)',
+                    color: 'var(--popover-foreground)',
+                    fontSize: '0.8rem',
+                  }}
+                  labelFormatter={(label) => formatShortDate(String(label))}
+                  formatter={(value: number, name) => [formatCurrency(value), name]}
+                />
+                <Legend wrapperStyle={{ fontSize: '0.8rem' }} />
+                <Bar dataKey="income" name="Income" fill="var(--income)" radius={[2, 2, 0, 0]} />
+                <Bar dataKey="expense" name="Expense" fill="var(--expense)" radius={[2, 2, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}

@@ -7,7 +7,9 @@
       "Bash(curl -s http://localhost:3000/)",
       "Bash(curl *)",
       "Bash(Get-ChildItem *)",
-      "Bash(npm *)"
+      "Bash(npm *)",
+      "Bash(Select-Object Name, Mode, LastWriteTime)",
+      "Bash(echo \"EXIT=$?\")"
     ]
   }
 }
