@@ -16,7 +16,9 @@ import { Badge } from '@/components/ui/badge'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
@@ -104,6 +106,18 @@ export function TransactionTable({
 
   const accountName = (id: string) => accounts.find((a) => a.id === id)?.name ?? '—'
 
+  const groups = useMemo(() => categories.filter((c) => c.parent_id === null), [categories])
+  const categoriesByGroupId = useMemo(() => {
+    const map: Record<string, Category[]> = {}
+    for (const c of categories) {
+      if (c.parent_id !== null) {
+        if (!map[c.parent_id]) map[c.parent_id] = []
+        map[c.parent_id]!.push(c)
+      }
+    }
+    return map
+  }, [categories])
+
   const onCategoryChange = async (tx: Transaction, categoryId: string) => {
     const next = categoryId === 'none' ? null : categoryId
     try {
@@ -179,16 +193,33 @@ export function TransactionTable({
                   value={tx.category_id ?? 'none'}
                   onValueChange={(v) => void onCategoryChange(tx, v)}
                 >
-                  <SelectTrigger className="h-8 w-40 text-xs">
+                  <SelectTrigger className="h-8 w-44 text-xs">
                     <SelectValue placeholder="Uncategorized" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">Uncategorized</SelectItem>
-                    {categories.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.name}
-                      </SelectItem>
-                    ))}
+                    {groups.map((group) => {
+                      const children = categoriesByGroupId[group.id] ?? []
+                      return (
+                        <SelectGroup key={group.id}>
+                          <SelectLabel className="flex items-center gap-1.5 text-xs">
+                            <span
+                              className="h-2 w-2 rounded-full"
+                              style={{ background: group.color ?? 'var(--muted-foreground)' }}
+                            />
+                            {group.name}
+                          </SelectLabel>
+                          <SelectItem value={group.id}>
+                            {group.name} (general)
+                          </SelectItem>
+                          {children.map((c) => (
+                            <SelectItem key={c.id} value={c.id}>
+                              {c.name}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      )
+                    })}
                   </SelectContent>
                 </Select>
                 {!tx.classified ? (

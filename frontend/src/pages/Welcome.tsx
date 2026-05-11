@@ -38,7 +38,7 @@ export default function WelcomePage() {
     return null
   }
   if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />
+    return <Navigate to="/accounts" replace />
   }
   return (
     <div>

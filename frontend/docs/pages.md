@@ -88,6 +88,35 @@ After step 3 (or any skip), navigate to `/dashboard`.
 
 ---
 
+## `/accounts` — Accounts
+
+**Auth:** Protected.
+
+**Purpose:** Full view of all accounts — current balances, historical balance lookup, and a time-series chart showing how each account (and net worth) has changed over time.
+
+**Layout (top to bottom):**
+
+1. **Header row** — "Accounts" heading (serif) + date picker (`<input type="date">`) labeled "Balances as of". Defaults to today. Changing the date updates the cards below to show each account's balance on that historical date. A "Today" reset button appears when a past date is selected.
+2. **Account balance cards** — One card per account showing name, type icon, and balance as of the selected date (pulled from `account_balance_snapshots`). Falls back to current balance if no snapshot exists for the selected date.
+3. **Net worth row** — Summarizes the sum of all displayed balances. Color: teal (`text-income`) when positive, rust (`text-expense`) when negative.
+4. **AccountList** — Horizontal scrollable row of account cards with an "Add account" button (same as dashboard). Always shows current balances.
+5. **Balance History chart** — `<AccountsOverTime>`:
+   - Line chart with one line per account + a dashed **Net Worth** line (sum of all)
+   - Account selector (`<Select>`) — "All accounts" or a specific account. Non-selected lines dim to 20% opacity.
+   - Clicking a line or its active dot updates the account selector.
+   - Time range buttons: `1M | 3M | 6M | 1Y | All` — filters the displayed date span
+   - Data source: `account_balance_snapshots` loaded by `useAccountHistory`
+
+**Data:**
+- `GET /accounts` (cards and chart axes)
+- `GET /accounts/history?from=2025-01-01&to=<today>&interval=week` (snapshot data for both sections)
+
+**Components:** `<AccountCard>`, `<AccountList>`, `<AccountsOverTime>`, `<EmptyState>`
+
+**Hooks:** `useAccounts`, `useAccountHistory`
+
+---
+
 ## `/dashboard` — Main View
 
 **Auth:** Protected.
@@ -98,9 +127,9 @@ After step 3 (or any skip), navigate to `/dashboard`.
 
 1. **Accounts overview** — A row of account cards, each showing name, type, and current balance. A "+" card at the end opens the "create account" dialog.
 2. **Spending charts** (side-by-side on desktop, stacked on mobile)
-   - **By category** — donut chart of expenses for the selected period, grouped by category
+   - **By group** — donut chart of expenses grouped by Group. Click a segment to drill down and see per-Category breakdown within that group; a back button returns to the group view.
    - **Over time** — bar chart of daily/weekly spending for the selected period
-3. **Category breakdown** — Table or list: category name | total spent | % of total | budget bar (future). Click a row → filtered transactions view.
+3. **Category breakdown** — Table showing Group totals with share % and progress bar. Click a group row to drill down into its Categories; click a category row to filter the transaction table. A back button returns to the group overview.
 4. **Recent transactions** — Table with columns: date, description, merchant, category (badge), account, amount. Filters: account, category, date range, search. Pagination.
 
 **Period selector** in the page header: This Month / Last Month / Last 3 Months / Custom range. Stored in URL query params so links are shareable.
@@ -165,9 +194,14 @@ Two clearly separated sections, vertically stacked:
 - Delete → confirmation dialog. Backend rejects with `409` if account has transactions.
 
 ### Tab 2: Categories
-- Grid of category chips (color-coded). Click a chip to edit.
-- "Add category" button → small modal: name + color picker
-- Delete → confirmation. Affected transactions get `category_id = null` automatically (backend behavior).
+Two-level hierarchy: **Groups** (broad labels, have a color) and **Categories** (specific items, inherit their group's color).
+
+- List of groups, each collapsible to show its child categories
+- "New group" button → modal: name + color picker
+- Click edit (pencil) on a group → modal with name + color + delete option. Deleting a group moves its categories to the top level as new groups.
+- "Add category" button inside each expanded group → modal: name only (color inherited from group)
+- Click edit on a category → modal with name + delete option. Deleting a category leaves its transactions uncategorized.
+- Transactions can be assigned to either a group (general) or a specific category.
 
 ### Tab 3: Profile
 - Email field (editable)

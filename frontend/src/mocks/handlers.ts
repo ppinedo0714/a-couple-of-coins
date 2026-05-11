@@ -117,6 +117,39 @@ export const handlers = [
     return HttpResponse.json(account, { status: 201 })
   }),
 
+  // /accounts/history must be registered before /accounts/:id so the literal path wins
+  http.get(`${API}/accounts/history`, ({ request }) => {
+    if (!requireAuth()) return unauthorized()
+    const url = new URL(request.url)
+    const accountIdsParam = url.searchParams.get('account_ids')
+    const accountIds = accountIdsParam ? accountIdsParam.split(',').filter(Boolean) : null
+    const from = url.searchParams.get('from') ?? ''
+    const to = url.searchParams.get('to') ?? ''
+    const interval = (url.searchParams.get('interval') ?? 'day') as 'day' | 'week' | 'month'
+
+    let filtered = [...db.accountSnapshots]
+    if (accountIds?.length) filtered = filtered.filter((s) => accountIds.includes(s.account_id))
+    if (from) filtered = filtered.filter((s) => s.date >= from)
+    if (to) filtered = filtered.filter((s) => s.date <= to)
+    filtered.sort((a, b) => a.date.localeCompare(b.date))
+
+    if (interval === 'month') {
+      const byMonth = new Map<string, typeof filtered[number]>()
+      for (const snap of filtered) {
+        byMonth.set(`${snap.account_id}-${snap.date.slice(0, 7)}`, snap)
+      }
+      filtered = Array.from(byMonth.values()).sort((a, b) => a.date.localeCompare(b.date))
+    }
+
+    return HttpResponse.json({
+      snapshots: filtered.map((s) => ({
+        date: s.date,
+        account_id: s.account_id,
+        balance: s.balance,
+      })),
+    })
+  }),
+
   http.get(`${API}/accounts/:id`, ({ params }) => {
     if (!requireAuth()) return unauthorized()
     const account = db.accounts.find((a) => a.id === params.id)
@@ -153,15 +186,23 @@ export const handlers = [
 
   http.post(`${API}/categories`, async ({ request }) => {
     if (!requireAuth()) return unauthorized()
-    const body = (await request.json()) as Partial<Category>
+    const body = (await request.json()) as Partial<Category> & { parent_id?: string }
     if (!body.name) return HttpResponse.json({ error: 'name required' }, { status: 400 })
-    if (db.categories.some((c) => c.name.toLowerCase() === body.name!.toLowerCase())) {
+    const parentId = body.parent_id ?? null
+    if (parentId !== null) {
+      const parent = db.categories.find((c) => c.id === parentId)
+      if (!parent || parent.parent_id !== null) {
+        return HttpResponse.json({ error: 'parent must be a group' }, { status: 400 })
+      }
+    }
+    if (db.categories.some((c) => c.parent_id === parentId && c.name.toLowerCase() === body.name!.toLowerCase())) {
       return HttpResponse.json({ error: 'name already exists' }, { status: 409 })
     }
     const cat: Category = {
       id: dbHelpers.uuid(),
       name: body.name,
-      color: body.color ?? null,
+      color: parentId !== null ? null : (body.color ?? null),
+      parent_id: parentId,
       created_at: dbHelpers.isoTimestamp(),
     }
     db.categories.push(cat)
@@ -174,7 +215,7 @@ export const handlers = [
     if (!cat) return HttpResponse.json({ error: 'not found' }, { status: 404 })
     const body = (await request.json()) as Partial<Category>
     if (body.name !== undefined) cat.name = body.name
-    if (body.color !== undefined) cat.color = body.color
+    if (body.color !== undefined && cat.parent_id === null) cat.color = body.color
     return HttpResponse.json(cat)
   }),
 
@@ -182,6 +223,9 @@ export const handlers = [
     if (!requireAuth()) return unauthorized()
     const idx = db.categories.findIndex((c) => c.id === params.id)
     if (idx < 0) return HttpResponse.json({ error: 'not found' }, { status: 404 })
+    db.categories.forEach((c) => {
+      if (c.parent_id === params.id) c.parent_id = null
+    })
     db.transactions.forEach((t) => {
       if (t.category_id === params.id) t.category_id = null
     })
@@ -204,7 +248,15 @@ export const handlers = [
 
     let filtered = [...db.transactions]
     if (accountId) filtered = filtered.filter((t) => t.account_id === accountId)
-    if (categoryId) filtered = filtered.filter((t) => t.category_id === categoryId)
+    if (categoryId) {
+      const isGroup = db.categories.some((c) => c.id === categoryId && c.parent_id === null)
+      if (isGroup) {
+        const childIds = db.categories.filter((c) => c.parent_id === categoryId).map((c) => c.id)
+        filtered = filtered.filter((t) => t.category_id === categoryId || childIds.includes(t.category_id ?? ''))
+      } else {
+        filtered = filtered.filter((t) => t.category_id === categoryId)
+      }
+    }
     if (from) filtered = filtered.filter((t) => t.date >= from)
     if (to) filtered = filtered.filter((t) => t.date <= to)
     if (search) {

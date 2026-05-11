@@ -30,7 +30,7 @@ export function UnprotectedRoute() {
     )
   }
   if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />
+    return <Navigate to="/accounts" replace />
   }
   return <Outlet />
 }

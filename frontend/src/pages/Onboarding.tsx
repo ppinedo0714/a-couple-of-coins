@@ -77,7 +77,7 @@ export default function OnboardingPage() {
     }
   }
 
-  const finish = () => navigate('/dashboard')
+  const finish = () => navigate('/accounts')
 
   return (
     <PageWrapper size="narrow" className="max-w-xl">

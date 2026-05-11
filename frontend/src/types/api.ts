@@ -1,5 +1,6 @@
 import type {
   Account,
+  AccountBalanceSnapshot,
   AccountType,
   Category,
   ImportJob,
@@ -39,6 +40,7 @@ export type UpdateAccountRequest = Partial<{
 export type CreateCategoryRequest = {
   name: string
   color?: string
+  parent_id?: string
 }
 
 export type UpdateCategoryRequest = Partial<{
@@ -92,5 +94,17 @@ export type CreateImportResponse = {
   status: ImportJob['status']
 }
 
+// Account history
+export type AccountHistoryQuery = {
+  account_ids?: string[]
+  from: string
+  to: string
+  interval?: 'day' | 'week' | 'month'
+}
+
+export type AccountHistoryResponse = {
+  snapshots: AccountBalanceSnapshot[]
+}
+
 // Aliases re-exported for convenience
-export type { Account, Category, Transaction, ImportJob, User }
+export type { Account, AccountBalanceSnapshot, Category, Transaction, ImportJob, User }

@@ -5,7 +5,7 @@ import { PageWrapper } from '@/components/layout/PageWrapper'
 
 export default function NotFoundPage() {
   const { isAuthenticated } = useAuth()
-  const home = isAuthenticated ? '/dashboard' : '/'
+  const home = isAuthenticated ? '/accounts' : '/'
   return (
     <PageWrapper size="narrow" className="py-24 text-center">
       <h1 className="font-serif text-6xl text-primary">404</h1>

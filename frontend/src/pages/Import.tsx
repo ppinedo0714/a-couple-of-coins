@@ -253,8 +253,8 @@ export default function ImportPage() {
 
       <p className="text-center text-xs text-muted-foreground">
         Want to see your imports?{' '}
-        <Link to="/dashboard" className="text-primary hover:underline">
-          Go to dashboard
+        <Link to="/accounts" className="text-primary hover:underline">
+          Go to accounts
         </Link>
       </p>
     </PageWrapper>

@@ -21,6 +21,7 @@ export type Category = {
   id: string
   name: string
   color: string | null
+  parent_id: string | null
   created_at: string
 }
 
@@ -46,4 +47,10 @@ export type ImportJob = {
   rows_imported: number
   created_at: string
   completed_at: string | null
+}
+
+export type AccountBalanceSnapshot = {
+  date: string
+  account_id: string
+  balance: number
 }

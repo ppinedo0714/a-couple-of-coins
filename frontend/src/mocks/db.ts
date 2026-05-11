@@ -2,12 +2,21 @@ import type { Account, Category, ImportJob, Transaction, User } from '@/types/mo
 
 type StoredUser = User & { password: string }
 
+type AccountBalanceSnapshot = {
+  id: string
+  account_id: string
+  balance: number
+  date: string
+  created_at: string
+}
+
 type DbState = {
   users: StoredUser[]
   accounts: Account[]
   categories: Category[]
   transactions: Transaction[]
   imports: ImportJob[]
+  accountSnapshots: AccountBalanceSnapshot[]
   sessionUserId: string | null
 }
 
@@ -56,13 +65,21 @@ function seedDb(): DbState {
   ]
 
   const categories: Category[] = [
-    { id: 'cat-groceries', name: 'Groceries', color: '#4CAF50', created_at: isoTimestamp() },
-    { id: 'cat-rent', name: 'Rent', color: '#7E57C2', created_at: isoTimestamp() },
-    { id: 'cat-transport', name: 'Transport', color: '#42A5F5', created_at: isoTimestamp() },
-    { id: 'cat-dining', name: 'Dining', color: '#FF7043', created_at: isoTimestamp() },
-    { id: 'cat-entertainment', name: 'Entertainment', color: '#EC407A', created_at: isoTimestamp() },
-    { id: 'cat-salary', name: 'Salary', color: '#26A69A', created_at: isoTimestamp() },
-    { id: 'cat-utilities', name: 'Utilities', color: '#FFA726', created_at: isoTimestamp() },
+    // Groups (parent_id: null)
+    { id: 'cat-groceries', name: 'Groceries', color: '#4CAF50', parent_id: null, created_at: isoTimestamp() },
+    { id: 'cat-rent', name: 'Rent', color: '#7E57C2', parent_id: null, created_at: isoTimestamp() },
+    { id: 'cat-transport', name: 'Transport', color: '#42A5F5', parent_id: null, created_at: isoTimestamp() },
+    { id: 'cat-dining', name: 'Dining', color: '#FF7043', parent_id: null, created_at: isoTimestamp() },
+    { id: 'cat-entertainment', name: 'Entertainment', color: '#EC407A', parent_id: null, created_at: isoTimestamp() },
+    { id: 'cat-salary', name: 'Salary', color: '#26A69A', parent_id: null, created_at: isoTimestamp() },
+    { id: 'cat-utilities', name: 'Utilities', color: '#FFA726', parent_id: null, created_at: isoTimestamp() },
+    // Categories under Entertainment
+    { id: 'cat-movies', name: 'Movies', color: null, parent_id: 'cat-entertainment', created_at: isoTimestamp() },
+    { id: 'cat-sports', name: 'Sports', color: null, parent_id: 'cat-entertainment', created_at: isoTimestamp() },
+    // Categories under Transport
+    { id: 'cat-rideshare', name: 'Rideshare', color: null, parent_id: 'cat-transport', created_at: isoTimestamp() },
+    // Categories under Groceries
+    { id: 'cat-produce', name: 'Fresh Produce', color: null, parent_id: 'cat-groceries', created_at: isoTimestamp() },
   ]
 
   const merchants: Array<{ desc: string; merchant: string; cat: string; amount: number }> = [
@@ -143,6 +160,35 @@ function seedDb(): DbState {
     created_at: now.toISOString(),
   })
 
+  // Generate ~70 weekly balance snapshots per account from Jan 2025 to present
+  const accountSnapshots: AccountBalanceSnapshot[] = []
+  const snapshotStart = new Date('2025-01-06')
+  const snapshotEnd = new Date()
+  let weekIndex = 0
+  for (let d = new Date(snapshotStart); d <= snapshotEnd; d.setDate(d.getDate() + 7)) {
+    const snap = new Date(d)
+    const dateStr = isoDate(snap)
+    const ts = isoTimestamp(snap)
+
+    // Chase Checking: starts ~$1800, slow growth with a monthly paycheck spike
+    const checkingBase = 1800 + weekIndex * 9.5
+    const checkingCycle = 500 * Math.sin(((weekIndex % 4) / 4) * 2 * Math.PI)
+    const checking = Math.round((checkingBase + checkingCycle) * 100) / 100
+
+    // Ally Savings: steady growth from $8000 toward $12500
+    const savings = Math.round((8000 + weekIndex * 64.3) * 100) / 100
+
+    // Amex Gold: sawtooth from $0 to −$1200, paid off each month
+    const credit = Math.round(-(((weekIndex % 4) / 3) * 1200) * 100) / 100
+
+    accountSnapshots.push(
+      { id: uuid(), account_id: 'acc-checking', balance: checking, date: dateStr, created_at: ts },
+      { id: uuid(), account_id: 'acc-savings', balance: savings, date: dateStr, created_at: ts },
+      { id: uuid(), account_id: 'acc-credit', balance: credit, date: dateStr, created_at: ts },
+    )
+    weekIndex++
+  }
+
   return {
     users: [
       {
@@ -156,6 +202,7 @@ function seedDb(): DbState {
     categories,
     transactions,
     imports: [],
+    accountSnapshots,
     sessionUserId: null,
   }
 }
@@ -181,6 +228,7 @@ export const dbHelpers = {
     db.categories = fresh.categories
     db.transactions = fresh.transactions
     db.imports = fresh.imports
+    db.accountSnapshots = fresh.accountSnapshots
     db.sessionUserId = null
   },
 }

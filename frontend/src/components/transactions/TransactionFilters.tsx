@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Search, X } from 'lucide-react'
 import type { Account, Category } from '@/types/models'
 import { Input } from '@/components/ui/input'
@@ -6,7 +6,9 @@ import { Button } from '@/components/ui/button'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
@@ -28,6 +30,18 @@ type Props = {
 
 export function TransactionFilters({ accounts, categories, value, onChange, className }: Props) {
   const [search, setSearch] = useState(value.search)
+
+  const groups = useMemo(() => categories.filter((c) => c.parent_id === null), [categories])
+  const categoriesByGroupId = useMemo(() => {
+    const map: Record<string, Category[]> = {}
+    for (const c of categories) {
+      if (c.parent_id !== null) {
+        if (!map[c.parent_id]) map[c.parent_id] = []
+        map[c.parent_id]!.push(c)
+      }
+    }
+    return map
+  }, [categories])
 
   useEffect(() => {
     if (search === value.search) return
@@ -74,11 +88,26 @@ export function TransactionFilters({ accounts, categories, value, onChange, clas
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="all">All categories</SelectItem>
-          {categories.map((c) => (
-            <SelectItem key={c.id} value={c.id}>
-              {c.name}
-            </SelectItem>
-          ))}
+          {groups.map((group) => {
+            const children = categoriesByGroupId[group.id] ?? []
+            return (
+              <SelectGroup key={group.id}>
+                <SelectLabel className="flex items-center gap-1.5 text-xs">
+                  <span
+                    className="h-2 w-2 rounded-full"
+                    style={{ background: group.color ?? 'var(--muted-foreground)' }}
+                  />
+                  {group.name}
+                </SelectLabel>
+                <SelectItem value={group.id}>{group.name}</SelectItem>
+                {children.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.name}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            )
+          })}
         </SelectContent>
       </Select>
       {hasFilters ? (

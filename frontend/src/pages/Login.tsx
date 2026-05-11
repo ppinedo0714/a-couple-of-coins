@@ -50,7 +50,7 @@ export default function LoginPage() {
     if (!accounts.isLoading && (accounts.data?.length ?? 0) === 0) {
       navigate('/onboarding')
     } else {
-      navigate('/dashboard')
+      navigate('/accounts')
     }
   }, [isAuthenticated, next, accounts.isLoading, accounts.data, navigate])
 

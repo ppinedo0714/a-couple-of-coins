@@ -216,18 +216,56 @@ Auth required. Delete an account. Fails if the account has transactions.
 
 ---
 
+### `GET /accounts/history`
+Auth required. Return balance snapshots for one or more accounts over a date range.
+
+**Query params**
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `account_ids` | string | Comma-separated UUIDs (optional; default: all user accounts) |
+| `from` | date | Start date inclusive, `YYYY-MM-DD` (required) |
+| `to` | date | End date inclusive, `YYYY-MM-DD` (required) |
+| `interval` | string | `day` \| `week` \| `month` — granularity of returned snapshots (optional; default: `day`) |
+
+For `week` and `month` intervals, the last available snapshot within each period is returned. Snapshots are ordered by date ascending. Only snapshots belonging to the authenticated user's accounts are returned.
+
+**Response `200`**
+```json
+{
+  "snapshots": [
+    { "date": "2025-01-06", "account_id": "uuid", "balance": 2100.00 },
+    { "date": "2025-01-13", "account_id": "uuid", "balance": 2350.00 }
+  ]
+}
+```
+
+**Errors:** `400` missing or invalid `from`/`to`
+
+---
+
 ## Categories
 
+Categories form a two-level hierarchy. Rows with `parent_id: null` are **Groups** (e.g. Entertainment); rows with a `parent_id` are **Categories** (e.g. Movies). A transaction's `category_id` may reference either level.
+
 ### `GET /categories`
-Auth required. List all categories for the current user.
+Auth required. List all groups and categories for the current user.
 
 **Response `200`**
 ```json
 [
   {
     "id": "uuid",
-    "name": "Groceries",
-    "color": "#4CAF50",
+    "name": "Entertainment",
+    "color": "#EC407A",
+    "parent_id": null,
+    "created_at": "2024-01-15T10:30:00Z"
+  },
+  {
+    "id": "uuid",
+    "name": "Movies",
+    "color": null,
+    "parent_id": "<entertainment-group-id>",
     "created_at": "2024-01-15T10:30:00Z"
   }
 ]
@@ -236,41 +274,47 @@ Auth required. List all categories for the current user.
 ---
 
 ### `POST /categories`
-Auth required. Create a category.
+Auth required. Create a group or a category.
 
 **Request**
 ```json
 {
-  "name": "Groceries",
-  "color": "#4CAF50"
+  "name": "Movies",
+  "parent_id": "<group-uuid>"
 }
 ```
 
-`color` is optional.
+- Omit `parent_id` (or pass `null`) to create a **Group**; include `color` for the group color.
+- Include `parent_id` to create a **Category** under that group; `color` is ignored (Categories inherit their group's color).
 
-**Response `201`** — created category object
+**Response `201`** — created object
 
-**Errors:** `400`, `409` name already exists for this user
+**Errors:** `400` invalid input or `parent_id` references a non-group, `409` name already exists within the same scope
 
 ---
 
 ### `PUT /categories/:id`
-Auth required. Update a category.
+Auth required. Update a group or category.
 
 **Request** — all fields optional
 ```json
 {
-  "name": "Food & Drink",
+  "name": "Streaming",
   "color": "#FF9800"
 }
 ```
 
-**Response `200`** — updated category object
+`color` is only applied when updating a Group (`parent_id IS NULL`); ignored for Categories.
+
+**Response `200`** — updated object
 
 ---
 
 ### `DELETE /categories/:id`
-Auth required. Delete a category. Transactions in this category will have `category_id` set to null.
+Auth required. Delete a group or category.
+
+- Deleting a **Group**: child categories have their `parent_id` set to null (they become top-level groups).
+- Deleting a **Category**: transactions referencing it have `category_id` set to null.
 
 **Response `204`** — no body
 
