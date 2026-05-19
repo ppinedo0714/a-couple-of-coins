@@ -36,12 +36,12 @@ export const demoAccounts: Account[] = [
 ]
 
 export const demoCategories: Category[] = [
-  { id: 'demo-groceries', name: 'Groceries', color: '#4CAF50', created_at: ts },
-  { id: 'demo-rent', name: 'Rent', color: '#7E57C2', created_at: ts },
-  { id: 'demo-transport', name: 'Transport', color: '#42A5F5', created_at: ts },
-  { id: 'demo-dining', name: 'Dining', color: '#FF7043', created_at: ts },
-  { id: 'demo-fun', name: 'Entertainment', color: '#EC407A', created_at: ts },
-  { id: 'demo-salary', name: 'Salary', color: '#26A69A', created_at: ts },
+  { id: 'demo-groceries', name: 'Groceries', color: '#4CAF50', parent_id: null, created_at: ts },
+  { id: 'demo-rent', name: 'Rent', color: '#7E57C2', parent_id: null, created_at: ts },
+  { id: 'demo-transport', name: 'Transport', color: '#42A5F5', parent_id: null, created_at: ts },
+  { id: 'demo-dining', name: 'Dining', color: '#FF7043', parent_id: null, created_at: ts },
+  { id: 'demo-fun', name: 'Entertainment', color: '#EC407A', parent_id: null, created_at: ts },
+  { id: 'demo-salary', name: 'Salary', color: '#26A69A', parent_id: null, created_at: ts },
 ]
 
 const sampleTx = (

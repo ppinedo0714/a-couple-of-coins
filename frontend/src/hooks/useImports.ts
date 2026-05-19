@@ -20,9 +20,9 @@ export function useImports() {
 
 export function useImportJob(id: string | null) {
   return useQuery({
-    queryKey: importJobKey(id ?? '__none__'),
+    queryKey: ['imports', id] as const,
     queryFn: () => importsApi.getImportJob(id!),
-    enabled: !!id,
+    enabled: id !== null,
     refetchInterval: (q) => {
       const data = q.state.data
       if (!data) return 2000

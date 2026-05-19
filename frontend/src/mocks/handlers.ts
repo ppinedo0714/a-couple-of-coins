@@ -243,7 +243,7 @@ export const handlers = [
     const to = url.searchParams.get('to')
     const search = url.searchParams.get('search')?.toLowerCase()
     const unclassified = url.searchParams.get('unclassified') === 'true'
-    const limit = Math.min(Number(url.searchParams.get('limit') ?? 50), 200)
+    const limit = Number(url.searchParams.get('limit') ?? 50)
     const offset = Number(url.searchParams.get('offset') ?? 0)
 
     let filtered = [...db.transactions]

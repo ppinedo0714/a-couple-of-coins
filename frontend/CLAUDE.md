@@ -43,32 +43,58 @@ Semantic-color rule (do not violate): brand color is amber (`primary`); positive
 
 ## Structure
 
-Currently scaffolded:
-
 ```
 frontend/
 ├── public/                 # static assets (favicon, icons)
 ├── src/
-│   ├── api/
-│   │   └── client.ts       # fetch wrapper with credentials: 'include'
+│   ├── api/                # typed API client, one file per resource
+│   │   ├── client.ts       # fetch wrapper with credentials: 'include'
+│   │   ├── auth.ts
+│   │   ├── accounts.ts
+│   │   ├── categories.ts
+│   │   ├── transactions.ts
+│   │   └── imports.ts
 │   ├── components/
-│   │   └── layout/
-│   │       └── Navbar.tsx  # top nav with route links
+│   │   ├── ui/             # shadcn/ui primitives (Button, Input, Dialog, ...)
+│   │   ├── layout/         # Navbar, PageWrapper, ProtectedRoute
+│   │   ├── charts/         # Recharts wrappers (SpendingByCategory, SpendingOverTime, CategoryBreakdown, AccountsOverTime)
+│   │   ├── transactions/   # TransactionTable, TransactionFilters
+│   │   ├── accounts/       # AccountCard, AccountList
+│   │   └── shared/         # EmptyState, LoadingSpinner
+│   ├── hooks/              # TanStack Query hooks, one file per resource
+│   │   ├── useAuth.ts
+│   │   ├── useAccounts.ts
+│   │   ├── useAccountHistory.ts
+│   │   ├── useCategories.ts
+│   │   ├── useTransactions.ts
+│   │   └── useImports.ts
 │   ├── lib/
 │   │   ├── utils.ts        # cn() helper
 │   │   ├── queryClient.ts  # TanStack Query config
-│   │   └── theme.tsx       # ThemeProvider with light/dark/system
-│   ├── pages/              # one file per route, all 8 stubbed
+│   │   ├── theme.tsx       # ThemeProvider with light/dark/system
+│   │   ├── format.ts       # currency and date formatters
+│   │   └── period.ts       # period keys → date ranges
+│   ├── mocks/              # MSW mock service worker (dev only)
+│   │   ├── browser.ts
+│   │   ├── handlers.ts
+│   │   └── db.ts           # in-memory seed data
+│   ├── pages/
 │   │   ├── Welcome.tsx
 │   │   ├── Login.tsx
 │   │   ├── Register.tsx
 │   │   ├── Onboarding.tsx
-│   │   ├── Dashboard.tsx
+│   │   ├── Accounts.tsx    # /accounts — balance history + date picker
+│   │   ├── Transactions.tsx # /transactions — spending charts + transaction table
 │   │   ├── Import.tsx
-│   │   ├── Settings/index.tsx
+│   │   ├── Settings/
+│   │   │   ├── index.tsx
+│   │   │   ├── AccountsTab.tsx
+│   │   │   ├── CategoriesTab.tsx
+│   │   │   └── ProfileTab.tsx
 │   │   └── NotFound.tsx
 │   ├── types/
-│   │   └── models.ts       # User, Account, Transaction, Category, ImportJob
+│   │   ├── models.ts       # User, Account, Transaction, Category, ImportJob
+│   │   └── api.ts          # request/response shapes
 │   ├── App.tsx             # ThemeProvider → QueryClientProvider → BrowserRouter
 │   ├── main.tsx
 │   ├── routes.tsx
@@ -77,8 +103,6 @@ frontend/
 ├── vite.config.ts          # port 3000, /api proxy → :8000, @ alias → /src
 └── tsconfig.*              # TypeScript with @/* path alias
 ```
-
-The `components/{ui,charts,transactions,accounts,shared}`, `hooks/`, and `fixtures/` directories from the architecture doc will be added as those features are built.
 
 ## Path alias
 

@@ -10,10 +10,9 @@ import { LoadingScreen } from '@/components/shared/LoadingSpinner'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { Button } from '@/components/ui/button'
 import { formatCurrency } from '@/lib/format'
+import { historyStartIso } from '@/lib/period'
 import { cn } from '@/lib/utils'
 import type { AccountBalanceSnapshot } from '@/types/models'
-
-const HISTORY_START = '2025-01-01'
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10)
@@ -35,8 +34,9 @@ export default function AccountsPage() {
   const today = todayIso()
   const [selectedDate, setSelectedDate] = useState(today)
 
+  const historyStart = historyStartIso()
   const accountsQuery = useAccounts()
-  const historyQuery = useAccountHistory({ from: HISTORY_START, to: today, interval: 'week' })
+  const historyQuery = useAccountHistory({ from: historyStart, to: today, interval: 'week' })
 
   if (accountsQuery.isLoading) {
     return (
@@ -95,7 +95,7 @@ export default function AccountsPage() {
               type="date"
               value={selectedDate}
               max={today}
-              min={HISTORY_START}
+              min={historyStart}
               onChange={(e) => setSelectedDate(e.target.value || today)}
               className="h-8 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
             />

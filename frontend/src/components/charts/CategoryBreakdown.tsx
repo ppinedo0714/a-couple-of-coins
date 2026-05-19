@@ -1,8 +1,7 @@
-import { useMemo, useState } from 'react'
-import { ChevronLeft } from 'lucide-react'
+import { Fragment, memo, useMemo, useState } from 'react'
+import { ChevronDown, ChevronRight } from 'lucide-react'
 import type { Category, Transaction } from '@/types/models'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
 import {
   Table,
   TableBody,
@@ -13,6 +12,7 @@ import {
 } from '@/components/ui/table'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { formatCurrency, formatPercent } from '@/lib/format'
+import { resolveGroupId } from '@/lib/categories'
 import { cn } from '@/lib/utils'
 
 type Props = {
@@ -22,20 +22,13 @@ type Props = {
   onSelect?: (categoryId: string | null) => void
 }
 
-function resolveGroupId(categoryId: string | null, catMap: Map<string, Category>): string {
-  if (!categoryId) return '__uncategorized'
-  const cat = catMap.get(categoryId)
-  if (!cat) return '__uncategorized'
-  return cat.parent_id ?? cat.id
-}
-
-export function CategoryBreakdown({
+export const CategoryBreakdown = memo(function CategoryBreakdown({
   transactions,
   categories,
   selectedCategoryId,
   onSelect,
 }: Props) {
-  const [drillGroupId, setDrillGroupId] = useState<string | null>(null)
+  const [expandedGroupId, setExpandedGroupId] = useState<string | null>(null)
 
   const catMap = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories])
 
@@ -58,21 +51,25 @@ export function CategoryBreakdown({
     }
     return Array.from(groupTotals.entries())
       .map(([id, d]) => ({ id, ...d, percent: grandTotal === 0 ? 0 : (d.total / grandTotal) * 100 }))
-      .sort((a, b) => b.total - a.total)
+      .sort((a, b) => {
+        if (a.id === '__uncategorized') return 1
+        if (b.id === '__uncategorized') return -1
+        return b.total - a.total
+      })
   }, [transactions, catMap])
 
   const drillRows = useMemo(() => {
-    if (!drillGroupId) return []
-    const group = catMap.get(drillGroupId)
+    if (!expandedGroupId) return []
+    const group = catMap.get(expandedGroupId)
     const txInGroup = transactions.filter(
-      (tx) => tx.amount < 0 && resolveGroupId(tx.category_id, catMap) === drillGroupId,
+      (tx) => tx.amount < 0 && resolveGroupId(tx.category_id, catMap) === expandedGroupId,
     )
     const catTotals = new Map<string, { name: string; color: string | null; total: number }>()
     let groupTotal = 0
     for (const tx of txInGroup) {
       const v = Math.abs(tx.amount)
       groupTotal += v
-      const isDirectToGroup = tx.category_id === drillGroupId
+      const isDirectToGroup = tx.category_id === expandedGroupId
       const id = isDirectToGroup ? '__general' : (tx.category_id ?? '__general')
       const cat = isDirectToGroup ? null : (tx.category_id ? catMap.get(tx.category_id) : null)
       const name = isDirectToGroup
@@ -85,47 +82,28 @@ export function CategoryBreakdown({
     return Array.from(catTotals.entries())
       .map(([id, d]) => ({ id, ...d, percent: groupTotal === 0 ? 0 : (d.total / groupTotal) * 100 }))
       .sort((a, b) => b.total - a.total)
-  }, [transactions, catMap, drillGroupId])
+  }, [transactions, catMap, expandedGroupId])
 
-  const rows = drillGroupId ? drillRows : overviewRows
-  const drillGroupName = drillGroupId
-    ? (overviewRows.find((r) => r.id === drillGroupId)?.name ?? 'Group')
-    : null
-
-  const handleRowClick = (row: { id: string }) => {
-    if (!drillGroupId) {
-      if (row.id !== '__uncategorized') {
-        setDrillGroupId(row.id)
-        onSelect?.(null)
-      }
-    } else {
-      const catId = row.id === '__general' ? drillGroupId : row.id
-      const active = selectedCategoryId === catId
-      onSelect?.(active ? null : catId)
-    }
+  const handleGroupClick = (groupId: string) => {
+    if (groupId === '__uncategorized') return
+    const isCollapsing = expandedGroupId === groupId
+    setExpandedGroupId(isCollapsing ? null : groupId)
+    onSelect?.(isCollapsing ? null : groupId)
   }
 
-  const handleBack = () => {
-    setDrillGroupId(null)
-    onSelect?.(null)
+  const handleCategoryClick = (catRow: { id: string }) => {
+    const catId = catRow.id === '__general' ? expandedGroupId! : catRow.id
+    const active = selectedCategoryId === catId
+    onSelect?.(active ? null : catId)
   }
 
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center gap-1">
-          {drillGroupId && (
-            <Button size="sm" variant="ghost" className="h-7 px-1.5" onClick={handleBack}>
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-          )}
-          <CardTitle className="text-base">
-            {drillGroupId ? `${drillGroupName} breakdown` : 'Spending by group'}
-          </CardTitle>
-        </div>
+        <CardTitle className="text-base">Group breakdown</CardTitle>
       </CardHeader>
       <CardContent className="px-0">
-        {rows.length === 0 ? (
+        {overviewRows.length === 0 ? (
           <div className="px-6">
             <EmptyState title="No spending in range" />
           </div>
@@ -133,56 +111,101 @@ export function CategoryBreakdown({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>{drillGroupId ? 'Category' : 'Group'}</TableHead>
+                <TableHead>Group</TableHead>
                 <TableHead className="text-right">Spent</TableHead>
                 <TableHead className="w-32 text-right">Share</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((row) => {
-                const catId = row.id === '__general' ? drillGroupId : row.id
-                const active = drillGroupId ? selectedCategoryId === catId : false
+              {overviewRows.map((row) => {
+                const isExpanded = expandedGroupId === row.id
+                const canExpand = row.id !== '__uncategorized'
+                const catRows = isExpanded ? drillRows : []
                 return (
-                  <TableRow
-                    key={String(row.id)}
-                    onClick={() => handleRowClick(row)}
-                    className={cn('cursor-pointer', active && 'bg-muted')}
-                  >
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <span
-                          className="h-2.5 w-2.5 rounded-full"
-                          style={{ background: row.color ?? 'var(--muted-foreground)' }}
-                        />
-                        <span className="text-sm">{row.name}</span>
-                        {!drillGroupId && row.id !== '__uncategorized' && (
-                          <span className="text-xs text-muted-foreground">↗</span>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right font-mono text-sm tabular-nums">
-                      {formatCurrency(row.total)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <div className="h-1.5 w-16 overflow-hidden rounded-full bg-muted">
-                          <div
-                            className="h-full bg-primary"
-                            style={{ width: `${Math.min(100, row.percent)}%` }}
+                  <Fragment key={row.id}>
+                    <TableRow
+                      onClick={() => handleGroupClick(row.id)}
+                      className={cn(canExpand && 'cursor-pointer')}
+                    >
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          {canExpand ? (
+                            isExpanded ? (
+                              <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                            ) : (
+                              <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                            )
+                          ) : (
+                            <span className="h-3.5 w-3.5 shrink-0" />
+                          )}
+                          <span
+                            className="h-2.5 w-2.5 shrink-0 rounded-full"
+                            style={{ background: row.color ?? 'var(--muted-foreground)' }}
                           />
+                          <span className="text-sm">{row.name}</span>
                         </div>
-                        <span className="w-12 text-right text-xs text-muted-foreground">
-                          {formatPercent(row.percent, 0)}
-                        </span>
-                      </div>
-                    </TableCell>
-                  </TableRow>
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-sm tabular-nums">
+                        {formatCurrency(row.total)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <div className="h-1.5 w-16 overflow-hidden rounded-full bg-muted">
+                            <div
+                              className="h-full bg-primary"
+                              style={{ width: `${Math.min(100, row.percent)}%` }}
+                            />
+                          </div>
+                          <span className="w-12 text-right text-xs text-muted-foreground">
+                            {formatPercent(row.percent, 0)}
+                          </span>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                    {catRows.map((catRow) => {
+                      const catId = catRow.id === '__general' ? expandedGroupId! : catRow.id
+                      const active = selectedCategoryId === catId
+                      return (
+                        <TableRow
+                          key={catRow.id}
+                          onClick={() => handleCategoryClick(catRow)}
+                          className={cn('cursor-pointer bg-muted/30', active && 'bg-muted')}
+                        >
+                          <TableCell>
+                            <div className="flex items-center gap-2 pl-8">
+                              <span
+                                className="h-2 w-2 shrink-0 rounded-full opacity-60"
+                                style={{ background: catRow.color ?? 'var(--muted-foreground)' }}
+                              />
+                              <span className="text-sm text-muted-foreground">{catRow.name}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right font-mono text-sm tabular-nums text-muted-foreground">
+                            {formatCurrency(catRow.total)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <div className="h-1.5 w-16 overflow-hidden rounded-full bg-muted">
+                                <div
+                                  className="h-full bg-primary opacity-50"
+                                  style={{ width: `${Math.min(100, catRow.percent)}%` }}
+                                />
+                              </div>
+                              <span className="w-12 text-right text-xs text-muted-foreground">
+                                {formatPercent(catRow.percent, 0)}
+                              </span>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </Fragment>
                 )
               })}
             </TableBody>
           </Table>
         )}
-        {!drillGroupId && rows.length > 0 && (
+        {overviewRows.length > 0 && (
           <p className="px-6 pt-2 text-xs text-muted-foreground">
             Click a group to see category breakdown
           </p>
@@ -190,4 +213,4 @@ export function CategoryBreakdown({
       </CardContent>
     </Card>
   )
-}
+})

@@ -66,41 +66,82 @@ function seedDb(): DbState {
 
   const categories: Category[] = [
     // Groups (parent_id: null)
-    { id: 'cat-groceries', name: 'Groceries', color: '#4CAF50', parent_id: null, created_at: isoTimestamp() },
-    { id: 'cat-rent', name: 'Rent', color: '#7E57C2', parent_id: null, created_at: isoTimestamp() },
-    { id: 'cat-transport', name: 'Transport', color: '#42A5F5', parent_id: null, created_at: isoTimestamp() },
-    { id: 'cat-dining', name: 'Dining', color: '#FF7043', parent_id: null, created_at: isoTimestamp() },
-    { id: 'cat-entertainment', name: 'Entertainment', color: '#EC407A', parent_id: null, created_at: isoTimestamp() },
-    { id: 'cat-salary', name: 'Salary', color: '#26A69A', parent_id: null, created_at: isoTimestamp() },
-    { id: 'cat-utilities', name: 'Utilities', color: '#FFA726', parent_id: null, created_at: isoTimestamp() },
-    // Categories under Entertainment
-    { id: 'cat-movies', name: 'Movies', color: null, parent_id: 'cat-entertainment', created_at: isoTimestamp() },
-    { id: 'cat-sports', name: 'Sports', color: null, parent_id: 'cat-entertainment', created_at: isoTimestamp() },
-    // Categories under Transport
-    { id: 'cat-rideshare', name: 'Rideshare', color: null, parent_id: 'cat-transport', created_at: isoTimestamp() },
-    // Categories under Groceries
-    { id: 'cat-produce', name: 'Fresh Produce', color: null, parent_id: 'cat-groceries', created_at: isoTimestamp() },
+    { id: 'grp-income', name: 'Income', color: '#26A69A', parent_id: null, created_at: isoTimestamp() },
+    { id: 'grp-finance', name: 'Finance', color: '#5C6BC0', parent_id: null, created_at: isoTimestamp() },
+    { id: 'grp-housing', name: 'Housing', color: '#7E57C2', parent_id: null, created_at: isoTimestamp() },
+    { id: 'grp-food', name: 'Food & Drink', color: '#66BB6A', parent_id: null, created_at: isoTimestamp() },
+    { id: 'grp-health', name: 'Health & Wellness', color: '#EC407A', parent_id: null, created_at: isoTimestamp() },
+    { id: 'grp-entertainment', name: 'Entertainment', color: '#AB47BC', parent_id: null, created_at: isoTimestamp() },
+    { id: 'grp-travel', name: 'Travel', color: '#42A5F5', parent_id: null, created_at: isoTimestamp() },
+    { id: 'grp-other', name: 'Other', color: '#78909C', parent_id: null, created_at: isoTimestamp() },
+    // Income sub-categories
+    { id: 'cat-salary', name: 'Salary', color: null, parent_id: 'grp-income', created_at: isoTimestamp() },
+    { id: 'cat-freelance', name: 'Freelance', color: null, parent_id: 'grp-income', created_at: isoTimestamp() },
+    { id: 'cat-bonus', name: 'Bonus', color: null, parent_id: 'grp-income', created_at: isoTimestamp() },
+    // Finance sub-categories
+    { id: 'cat-savings', name: 'Savings', color: null, parent_id: 'grp-finance', created_at: isoTimestamp() },
+    { id: 'cat-investments', name: 'Investments', color: null, parent_id: 'grp-finance', created_at: isoTimestamp() },
+    { id: 'cat-donations', name: 'Donations', color: null, parent_id: 'grp-finance', created_at: isoTimestamp() },
+    // Housing sub-categories
+    { id: 'cat-rent', name: 'Rent', color: null, parent_id: 'grp-housing', created_at: isoTimestamp() },
+    { id: 'cat-electricity', name: 'Electricity', color: null, parent_id: 'grp-housing', created_at: isoTimestamp() },
+    { id: 'cat-internet', name: 'Internet', color: null, parent_id: 'grp-housing', created_at: isoTimestamp() },
+    // Food & Drink sub-categories
+    { id: 'cat-groceries', name: 'Groceries', color: null, parent_id: 'grp-food', created_at: isoTimestamp() },
+    { id: 'cat-dining', name: 'Dining Out', color: null, parent_id: 'grp-food', created_at: isoTimestamp() },
+    // Health & Wellness sub-categories
+    { id: 'cat-medical', name: 'Medical', color: null, parent_id: 'grp-health', created_at: isoTimestamp() },
+    { id: 'cat-dental', name: 'Dental', color: null, parent_id: 'grp-health', created_at: isoTimestamp() },
+    { id: 'cat-gym', name: 'Gym', color: null, parent_id: 'grp-health', created_at: isoTimestamp() },
+    // Entertainment sub-categories
+    { id: 'cat-sports', name: 'Sports', color: null, parent_id: 'grp-entertainment', created_at: isoTimestamp() },
+    { id: 'cat-books', name: 'Books', color: null, parent_id: 'grp-entertainment', created_at: isoTimestamp() },
+    { id: 'cat-streaming', name: 'Streaming', color: null, parent_id: 'grp-entertainment', created_at: isoTimestamp() },
+    // Travel sub-categories
+    { id: 'cat-gas', name: 'Gas', color: null, parent_id: 'grp-travel', created_at: isoTimestamp() },
+    { id: 'cat-flights', name: 'Flights', color: null, parent_id: 'grp-travel', created_at: isoTimestamp() },
+    { id: 'cat-hotels', name: 'Hotels', color: null, parent_id: 'grp-travel', created_at: isoTimestamp() },
   ]
 
   const merchants: Array<{ desc: string; merchant: string; cat: string; amount: number }> = [
+    // Income
+    { desc: 'FREELANCE PAYMENT', merchant: 'Client Co', cat: 'cat-freelance', amount: 1200 },
+    // Finance
+    { desc: 'ALLY SAVINGS TRANSFER', merchant: 'Ally Bank', cat: 'cat-savings', amount: -500 },
+    { desc: 'VANGUARD AUTO-INVEST', merchant: 'Vanguard', cat: 'cat-investments', amount: -300 },
+    { desc: 'RED CROSS DONATION', merchant: 'Red Cross', cat: 'cat-donations', amount: -50 },
+    // Housing
+    { desc: 'CON ED PAYMENT', merchant: 'Con Edison', cat: 'cat-electricity', amount: -82.5 },
+    { desc: 'COMCAST XFINITY', merchant: 'Xfinity', cat: 'cat-internet', amount: -79.99 },
+    // Food & Drink
     { desc: 'WHOLE FOODS MARKET', merchant: 'Whole Foods', cat: 'cat-groceries', amount: -68.42 },
     { desc: 'TRADER JOES #482', merchant: 'Trader Joes', cat: 'cat-groceries', amount: -42.18 },
-    { desc: 'UBER TRIP', merchant: 'Uber', cat: 'cat-transport', amount: -18.5 },
-    { desc: 'LYFT *RIDE', merchant: 'Lyft', cat: 'cat-transport', amount: -22.75 },
-    { desc: 'SHELL OIL 5713', merchant: 'Shell', cat: 'cat-transport', amount: -54.1 },
+    { desc: 'COSTCO WHSE 1083', merchant: 'Costco', cat: 'cat-groceries', amount: -132.7 },
     { desc: 'CHIPOTLE 0421', merchant: 'Chipotle', cat: 'cat-dining', amount: -13.85 },
     { desc: 'STARBUCKS STORE 9921', merchant: 'Starbucks', cat: 'cat-dining', amount: -6.45 },
     { desc: 'BLUE BOTTLE COFFEE', merchant: 'Blue Bottle', cat: 'cat-dining', amount: -7.5 },
-    { desc: 'NETFLIX.COM', merchant: 'Netflix', cat: 'cat-entertainment', amount: -15.49 },
-    { desc: 'SPOTIFY USA', merchant: 'Spotify', cat: 'cat-entertainment', amount: -10.99 },
-    { desc: 'CON ED PAYMENT', merchant: 'Con Edison', cat: 'cat-utilities', amount: -82.5 },
-    { desc: 'VERIZON WIRELESS', merchant: 'Verizon', cat: 'cat-utilities', amount: -75.0 },
-    { desc: 'AMC THEATRES', merchant: 'AMC', cat: 'cat-entertainment', amount: -28.5 },
-    { desc: 'COSTCO WHSE 1083', merchant: 'Costco', cat: 'cat-groceries', amount: -132.7 },
+    // Health & Wellness
+    { desc: 'PLANET FITNESS', merchant: 'Planet Fitness', cat: 'cat-gym', amount: -24.99 },
+    { desc: 'DR SMITH MEDICAL', merchant: 'Dr. Smith', cat: 'cat-medical', amount: -150 },
+    { desc: 'BRIGHT DENTAL', merchant: 'Bright Dental', cat: 'cat-dental', amount: -200 },
+    // Entertainment
+    { desc: 'NETFLIX.COM', merchant: 'Netflix', cat: 'cat-streaming', amount: -15.49 },
+    { desc: 'SPOTIFY USA', merchant: 'Spotify', cat: 'cat-streaming', amount: -10.99 },
+    { desc: 'AMAZON BOOKS', merchant: 'Amazon', cat: 'cat-books', amount: -16.99 },
+    { desc: 'NBA TICKETS', merchant: 'NBA', cat: 'cat-sports', amount: -89 },
+    // Travel
+    { desc: 'SHELL OIL 5713', merchant: 'Shell', cat: 'cat-gas', amount: -54.1 },
+    { desc: 'DELTA AIRLINES', merchant: 'Delta', cat: 'cat-flights', amount: -342 },
+    { desc: 'MARRIOTT HOTEL', merchant: 'Marriott', cat: 'cat-hotels', amount: -189 },
+    { desc: 'UBER TRIP', merchant: 'Uber', cat: 'cat-gas', amount: -18.5 },
+    // Other
+    { desc: 'MISC EXPENSE', merchant: 'Various', cat: 'grp-other', amount: -45 },
   ]
 
   const transactions: Transaction[] = []
-  for (let dayOffset = 0; dayOffset < 45; dayOffset++) {
+
+  // Random transactions over the last 365 days (covers this year + last year)
+  for (let dayOffset = 0; dayOffset < 365; dayOffset++) {
     const date = new Date(now)
     date.setDate(date.getDate() - dayOffset)
     const txCount = Math.floor(Math.random() * 3)
@@ -120,7 +161,39 @@ function seedDb(): DbState {
       })
     }
   }
-  // Two unclassified
+
+  // Monthly recurring: salary + rent for each of the last 13 months
+  for (let monthOffset = 0; monthOffset <= 12; monthOffset++) {
+    const firstOfMonth = new Date(now.getFullYear(), now.getMonth() - monthOffset, 1)
+    const dateStr = isoDate(firstOfMonth)
+    const ts = firstOfMonth.toISOString()
+    transactions.push({
+      id: uuid(),
+      account_id: 'acc-checking',
+      category_id: 'cat-salary',
+      amount: 4250,
+      description: 'PAYROLL DEPOSIT',
+      merchant_name: 'Payroll',
+      date: dateStr,
+      source: 'csv',
+      classified: true,
+      created_at: ts,
+    })
+    transactions.push({
+      id: uuid(),
+      account_id: 'acc-checking',
+      category_id: 'cat-rent',
+      amount: -1850,
+      description: 'RENT PAYMENT',
+      merchant_name: 'Landlord',
+      date: dateStr,
+      source: 'manual',
+      classified: true,
+      created_at: ts,
+    })
+  }
+
+  // Two unclassified on today
   transactions.push({
     id: uuid(),
     account_id: 'acc-checking',
@@ -131,32 +204,6 @@ function seedDb(): DbState {
     date: isoDate(now),
     source: 'csv',
     classified: false,
-    created_at: now.toISOString(),
-  })
-  // Salary deposit
-  transactions.push({
-    id: uuid(),
-    account_id: 'acc-checking',
-    category_id: 'cat-salary',
-    amount: 4250,
-    description: 'PAYROLL DEPOSIT',
-    merchant_name: 'Payroll',
-    date: isoDate(new Date(now.getFullYear(), now.getMonth(), 1)),
-    source: 'csv',
-    classified: true,
-    created_at: now.toISOString(),
-  })
-  // Rent
-  transactions.push({
-    id: uuid(),
-    account_id: 'acc-checking',
-    category_id: 'cat-rent',
-    amount: -1850,
-    description: 'RENT PAYMENT',
-    merchant_name: 'Landlord',
-    date: isoDate(new Date(now.getFullYear(), now.getMonth(), 1)),
-    source: 'manual',
-    classified: true,
     created_at: now.toISOString(),
   })
 

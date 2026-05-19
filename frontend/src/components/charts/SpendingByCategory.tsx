@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { memo, useMemo, useState } from 'react'
 import { ChevronLeft } from 'lucide-react'
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts'
 import type { Category, Transaction } from '@/types/models'
@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { formatCurrency } from '@/lib/format'
+import { resolveGroupId } from '@/lib/categories'
 
 const FALLBACK_COLORS = [
   'var(--primary)',
@@ -22,14 +23,7 @@ type Props = {
   categories: Category[]
 }
 
-function resolveGroupId(categoryId: string | null, catMap: Map<string, Category>): string {
-  if (!categoryId) return '__uncategorized'
-  const cat = catMap.get(categoryId)
-  if (!cat) return '__uncategorized'
-  return cat.parent_id ?? cat.id
-}
-
-export function SpendingByCategory({ transactions, categories }: Props) {
+export const SpendingByCategory = memo(function SpendingByCategory({ transactions, categories }: Props) {
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
 
   const catMap = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories])
@@ -104,7 +98,7 @@ export function SpendingByCategory({ transactions, categories }: Props) {
             </Button>
           )}
           <CardTitle className="text-base">
-            {selectedGroupId ? `${selectedGroupName} breakdown` : 'Spending by group'}
+            {selectedGroupId ? `${selectedGroupName} breakdown` : 'Spending distribution'}
           </CardTitle>
         </div>
         <CardDescription>Total: {formatCurrency(total)}</CardDescription>
@@ -113,15 +107,15 @@ export function SpendingByCategory({ transactions, categories }: Props) {
         {currentData.length === 0 ? (
           <EmptyState title="No spending in range" description="Try a wider date range." />
         ) : (
-          <div className="h-64 w-full">
+          <div className="h-80 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
                   data={currentData}
                   dataKey="total"
                   nameKey="name"
-                  innerRadius={60}
-                  outerRadius={90}
+                  innerRadius={75}
+                  outerRadius={120}
                   paddingAngle={2}
                   stroke="var(--background)"
                   onClick={
@@ -161,4 +155,4 @@ export function SpendingByCategory({ transactions, categories }: Props) {
       </CardContent>
     </Card>
   )
-}
+})

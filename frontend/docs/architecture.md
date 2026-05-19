@@ -56,7 +56,8 @@ frontend/
 │   │   ├── Login.tsx
 │   │   ├── Register.tsx
 │   │   ├── Onboarding.tsx
-│   │   ├── Dashboard.tsx
+│   │   ├── Accounts.tsx
+│   │   ├── Transactions.tsx
 │   │   ├── Import.tsx
 │   │   ├── Settings/
 │   │   │   ├── index.tsx        ← tab container
@@ -107,7 +108,8 @@ Public:
 
 Protected (require auth):
   /onboarding        First-time wizard
-  /dashboard         General info / main view
+  /accounts          Account balances + balance history
+  /transactions      Spending charts + transaction table
   /import            CSV + bank import
   /settings          Tabs: accounts, categories, profile
 ```

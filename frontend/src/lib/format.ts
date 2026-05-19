@@ -24,14 +24,18 @@ const shortDateFormatter = new Intl.DateTimeFormat('en-US', {
   day: 'numeric',
 })
 
+function parseDate(date: string | Date): Date {
+  if (typeof date !== 'string') return date
+  const [year, month, day] = date.split('-').map(Number)
+  return new Date(year!, month! - 1, day!)
+}
+
 export function formatDate(date: string | Date): string {
-  const d = typeof date === 'string' ? new Date(date) : date
-  return dateFormatter.format(d)
+  return dateFormatter.format(parseDate(date))
 }
 
 export function formatShortDate(date: string | Date): string {
-  const d = typeof date === 'string' ? new Date(date) : date
-  return shortDateFormatter.format(d)
+  return shortDateFormatter.format(parseDate(date))
 }
 
 export function formatPercent(value: number, fractionDigits = 1): string {

@@ -14,6 +14,8 @@ The API uses **JWT stored in an httpOnly cookie**, set by the backend on success
 
 All request and response bodies are JSON. All timestamps are ISO 8601 (`2024-01-15T10:30:00Z`). All IDs are UUIDs.
 
+**Date fields** (e.g. `from`, `to`, transaction `date`) use `YYYY-MM-DD` calendar dates with no timezone component — treat as UTC midnight.
+
 ---
 
 ## Auth
@@ -381,6 +383,10 @@ Auth required. Create a transaction manually.
 
 `category_id` is optional. `amount` is signed (negative = expense).
 
+The backend sets `source = "manual"` and `classified = false` on creation. `merchant_name` starts null and is populated by the prediction service after classification. These fields are not accepted from the request body.
+
+After insert, the backend updates `accounts.balance` by the transaction amount and upserts a row in `account_balance_snapshots` for the transaction date.
+
 **Response `201`** — created transaction object
 
 **Errors:** `400`, `404` account not found
@@ -409,6 +415,10 @@ Auth required. Update a transaction. Common use: assign or change a category.
 }
 ```
 
+Pass `"category_id": null` explicitly to remove the category assignment.
+
+If `amount` changes, the backend adjusts `accounts.balance` by the delta and upserts snapshots for both the old and new transaction dates. If `date` changes, the snapshot for the old date is recalculated from remaining transactions on that day.
+
 **Response `200`** — updated transaction object
 
 **Errors:** `400`, `404`
@@ -425,9 +435,11 @@ Auth required. Delete a transaction. Updates the parent account balance.
 ---
 
 ### `POST /transactions/classify`
-Auth required. Sends all unclassified transactions (for the current user) to the prediction service. The prediction service returns a suggested category and normalized merchant name for each.
+Auth required. Sends all unclassified transactions (for the current user) to the prediction service. The prediction service returns a suggested `category_id` and normalized `merchant_name` for each.
 
 **Request** — no body required (classifies all unclassified transactions for the user)
+
+The backend fetches all transactions where `classified = false` for the user, POSTs them to `services/predictions`, then writes back the returned `category_id` and `merchant_name` and sets `classified = true`.
 
 **Response `200`**
 ```json

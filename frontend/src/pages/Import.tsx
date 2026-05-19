@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState, type DragEvent } from 'react'
-import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import { FileText, Link as LinkIcon, Upload } from 'lucide-react'
 import type { ImportJob } from '@/types/models'
@@ -250,13 +249,6 @@ export default function ImportPage() {
           )}
         </CardContent>
       </Card>
-
-      <p className="text-center text-xs text-muted-foreground">
-        Want to see your imports?{' '}
-        <Link to="/accounts" className="text-primary hover:underline">
-          Go to accounts
-        </Link>
-      </p>
     </PageWrapper>
   )
 }

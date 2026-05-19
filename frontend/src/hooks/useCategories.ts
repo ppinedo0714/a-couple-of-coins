@@ -41,7 +41,10 @@ export function useUpdateCategory() {
   return useMutation({
     mutationFn: ({ id, body }: { id: string; body: UpdateCategoryRequest }) =>
       categoriesApi.updateCategory(id, body),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: categoriesKey }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: categoriesKey })
+      queryClient.invalidateQueries({ queryKey: ['transactions'] })
+    },
   })
 }
 
@@ -49,6 +52,9 @@ export function useDeleteCategory() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => categoriesApi.deleteCategory(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: categoriesKey }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: categoriesKey })
+      queryClient.invalidateQueries({ queryKey: ['transactions'] })
+    },
   })
 }

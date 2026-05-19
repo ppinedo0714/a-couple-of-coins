@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { memo, useMemo, useState } from 'react'
 import { ArrowDown, ArrowUp, ArrowUpDown, Inbox } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Account, Category, Transaction } from '@/types/models'
@@ -67,7 +67,7 @@ type Props = {
   loading?: boolean
 }
 
-export function TransactionTable({
+export const TransactionTable = memo(function TransactionTable({
   transactions,
   total,
   page,
@@ -267,4 +267,4 @@ export function TransactionTable({
       </div>
     </div>
   )
-}
+})

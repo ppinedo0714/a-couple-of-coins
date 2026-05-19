@@ -6,7 +6,7 @@ Every page in the app, in route order. For each: route, auth requirement, purpos
 
 ## `/` — Welcome
 
-**Auth:** Public. If user is already authenticated, redirect to `/dashboard`.
+**Auth:** Public. If user is already authenticated, redirect to `/accounts`.
 
 **Purpose:** First impression. Sells the app to a new visitor and provides a path to sign up or log in.
 
@@ -24,7 +24,7 @@ Every page in the app, in route order. For each: route, auth requirement, purpos
 
 ## `/login` — Login
 
-**Auth:** Public. Authenticated users redirect to `/dashboard`.
+**Auth:** Public. Authenticated users redirect to `/accounts`.
 
 **Purpose:** Email/password login + OAuth.
 
@@ -36,9 +36,9 @@ Every page in the app, in route order. For each: route, auth requirement, purpos
 - Link below: "Don't have an account? Sign up"
 
 **Behavior:**
-- On submit, calls `POST /auth/login`. On `200`, navigate to `/dashboard`. On `401`, show inline error.
+- On submit, calls `POST /auth/login`. On `200`, navigate to `/accounts`. On `401`, show inline error.
 - OAuth buttons are anchor tags pointing at `/api/v1/auth/oauth/google` (or `/github`). The backend handles the redirect dance and sets the cookie before bouncing back.
-- After successful OAuth, the backend redirects to `/login?oauth=success`. The page detects this and navigates to `/dashboard` (or `/onboarding` if first login — see below).
+- After successful OAuth, the backend redirects to `/login?oauth=success`. The page detects this and navigates to `/accounts` (or `/onboarding` if first login — see below).
 
 **Components:** `<AuthCard>`, `<OAuthButton>`, form via `react-hook-form` + `zod`
 
@@ -76,11 +76,11 @@ Every page in the app, in route order. For each: route, auth requirement, purpos
 **Steps:**
 1. **Create your first account** — Form: name, type (dropdown: checking/savings/credit/investment), starting balance, currency. Submit creates the account. Skip → step 2.
 2. **Add some categories** — Pre-suggest a small starter set (Groceries, Rent, Transport, Salary, Entertainment) as toggle chips. User picks which to create + can add custom ones inline. Submit creates them in bulk. Skip → step 3.
-3. **Import your transactions** — Two buttons: "Upload CSV" (links to `/import`), "I'll do this later" (links to `/dashboard`).
+3. **Import your transactions** — Two buttons: "Upload CSV" (links to `/import`), "I'll do this later" (links to `/accounts`).
 
 A progress indicator at the top shows step 1/3, 2/3, 3/3. Each step has a "Skip" link that advances without action.
 
-After step 3 (or any skip), navigate to `/dashboard`.
+After step 3 (or any skip), navigate to `/accounts`.
 
 **Data:** Calls `POST /accounts` and `POST /categories` (in batch). No state stored across steps beyond what's saved.
 
@@ -117,31 +117,31 @@ After step 3 (or any skip), navigate to `/dashboard`.
 
 ---
 
-## `/dashboard` — Main View
+## `/transactions` — Transactions & Spending
 
 **Auth:** Protected.
 
-**Purpose:** The user's home base. Shows current financial snapshot and recent activity.
+**Purpose:** Spending analytics and full transaction history. Shows charts for the selected period plus a filterable, paginated transaction table.
 
 **Layout (top to bottom on mobile, grid on desktop):**
 
-1. **Accounts overview** — A row of account cards, each showing name, type, and current balance. A "+" card at the end opens the "create account" dialog.
+1. **Period selector** in the page header: This Month / Last Month / Last 3 Months / This Year / Last Year / Custom range.
 2. **Spending charts** (side-by-side on desktop, stacked on mobile)
    - **By group** — donut chart of expenses grouped by Group. Click a segment to drill down and see per-Category breakdown within that group; a back button returns to the group view.
    - **Over time** — bar chart of daily/weekly spending for the selected period
 3. **Category breakdown** — Table showing Group totals with share % and progress bar. Click a group row to drill down into its Categories; click a category row to filter the transaction table. A back button returns to the group overview.
-4. **Recent transactions** — Table with columns: date, description, merchant, category (badge), account, amount. Filters: account, category, date range, search. Pagination.
-
-**Period selector** in the page header: This Month / Last Month / Last 3 Months / Custom range. Stored in URL query params so links are shareable.
+4. **Transaction table** — Columns: date, description, merchant, category (badge), account, amount. Filters: account, category, date range, search. Pagination (50 per page). "Classify uncategorized" button appears when unclassified transactions exist.
 
 **Data:**
-- `GET /accounts` (cards)
-- `GET /transactions?from=...&to=...` (table + chart inputs)
-- `GET /categories` (badge labels and breakdown)
+- `GET /accounts` (filter dropdown + table)
+- `GET /transactions?from=...&to=...&limit=200` (chart inputs — fetched without pagination)
+- `GET /transactions?from=...&to=...&account_id=...&category_id=...&search=...&limit=50&offset=...` (table — paginated, filtered)
+- `GET /categories` (badge labels, breakdown, and filter dropdown)
+- `POST /transactions/classify` (classify button)
 
-The charts and breakdown derive their data client-side from the transactions response — one fetch, multiple visualizations.
+The charts and breakdown derive their data client-side from the unfiltered transactions response — one fetch, multiple visualizations.
 
-**Components:** `<AccountList>`, `<SpendingByCategory>`, `<SpendingOverTime>`, `<CategoryBreakdown>`, `<TransactionTable>`, `<PeriodSelector>`
+**Components:** `<SpendingByCategory>`, `<SpendingOverTime>`, `<CategoryBreakdown>`, `<TransactionTable>`, `<TransactionFilters>`
 
 ---
 

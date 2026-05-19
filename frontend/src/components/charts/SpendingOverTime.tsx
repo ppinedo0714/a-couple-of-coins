@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { memo, useMemo } from 'react'
 import {
   Bar,
   BarChart,
@@ -16,10 +16,11 @@ import { formatCurrency, formatShortDate } from '@/lib/format'
 
 type Props = {
   transactions: Transaction[]
+  dateRange?: { from: string; to: string }
 }
 
-export function SpendingOverTime({ transactions }: Props) {
-  const data = useMemo(() => {
+export const SpendingOverTime = memo(function SpendingOverTime({ transactions, dateRange }: Props) {
+  const chartData = useMemo(() => {
     const byDay = new Map<string, { date: string; income: number; expense: number }>()
     for (const tx of transactions) {
       const entry = byDay.get(tx.date) ?? { date: tx.date, income: 0, expense: 0 }
@@ -27,8 +28,25 @@ export function SpendingOverTime({ transactions }: Props) {
       else entry.expense += Math.abs(tx.amount)
       byDay.set(tx.date, entry)
     }
-    return Array.from(byDay.values()).sort((a, b) => (a.date < b.date ? -1 : 1))
-  }, [transactions])
+    if (dateRange) {
+      const cursor = new Date(dateRange.from + 'T12:00:00')
+      const end = new Date(dateRange.to + 'T12:00:00')
+      while (cursor <= end) {
+        const y = cursor.getFullYear()
+        const m = String(cursor.getMonth() + 1).padStart(2, '0')
+        const d = String(cursor.getDate()).padStart(2, '0')
+        const dateStr = `${y}-${m}-${d}`
+        if (!byDay.has(dateStr)) byDay.set(dateStr, { date: dateStr, income: 0, expense: 0 })
+        cursor.setDate(cursor.getDate() + 1)
+      }
+    }
+    const sorted = Array.from(byDay.values()).sort((a, b) => (a.date < b.date ? -1 : 1))
+    const peak = sorted.reduce((m, e) => Math.max(m, e.income, e.expense), 0)
+    const yMax = Math.ceil(peak / 1000) * 1000 || 1000
+    return { sorted, yMax }
+  }, [transactions, dateRange])
+
+  const { sorted: data, yMax } = chartData
 
   return (
     <Card>
@@ -42,7 +60,7 @@ export function SpendingOverTime({ transactions }: Props) {
         ) : (
           <div className="h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+              <BarChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }} barSize={8}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
                 <XAxis
                   dataKey="date"
@@ -59,6 +77,7 @@ export function SpendingOverTime({ transactions }: Props) {
                   tickLine={false}
                   axisLine={false}
                   tickFormatter={(v) => `$${Math.round(Number(v))}`}
+                  domain={[0, yMax]}
                 />
                 <Tooltip
                   contentStyle={{
@@ -81,4 +100,4 @@ export function SpendingOverTime({ transactions }: Props) {
       </CardContent>
     </Card>
   )
-}
+})

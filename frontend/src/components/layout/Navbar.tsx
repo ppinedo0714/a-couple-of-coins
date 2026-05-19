@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, NavLink, useLocation } from 'react-router-dom'
+import { Link, NavLink } from 'react-router-dom'
 import { Menu, X } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { Button } from '@/components/ui/button'
@@ -12,21 +12,9 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
     isActive && 'font-medium text-primary',
   )
 
-function buildTransactionsLink(search: string): string {
-  const params = new URLSearchParams(search)
-  const forward = new URLSearchParams()
-  for (const key of ['period', 'from', 'to']) {
-    if (params.has(key)) forward.set(key, params.get(key)!)
-  }
-  const qs = forward.toString()
-  return qs ? `/transactions?${qs}` : '/transactions'
-}
-
 export function Navbar() {
   const { user, isLoading } = useAuth()
-  const { search } = useLocation()
   const [mobileOpen, setMobileOpen] = useState(false)
-  const transactionsLink = buildTransactionsLink(search)
 
   return (
     <nav className="border-b border-border bg-background/80 backdrop-blur">
@@ -79,7 +67,7 @@ export function Navbar() {
                 <NavLink to="/accounts" className={navLinkClass} onClick={() => setMobileOpen(false)}>
                   Accounts
                 </NavLink>
-                <NavLink to={transactionsLink} className={navLinkClass} onClick={() => setMobileOpen(false)}>
+                <NavLink to="/transactions" className={navLinkClass} onClick={() => setMobileOpen(false)}>
                   Transactions
                 </NavLink>
                 <NavLink to="/import" className={navLinkClass} onClick={() => setMobileOpen(false)}>

@@ -153,9 +153,9 @@ The core table. Every financial event is a transaction row.
 | `category_id` | `uuid` | FK → `categories.id`, ON DELETE SET NULL; nullable |
 | `amount` | `numeric(15,2)` | Signed: positive = income, negative = expense |
 | `description` | `varchar(500)` | Raw text — e.g. "AMZN MKTP US*RT19B1234" |
-| `merchant_name` | `varchar(255)` | Normalized name from prediction service; nullable |
+| `merchant_name` | `varchar(255)` | Normalized name set by prediction service on classification; nullable; not writable by the frontend |
 | `date` | `date` | Transaction date (not timestamp — bank data gives dates only) |
-| `source` | `varchar(20)` | `manual`, `csv`, or `bank` |
+| `source` | `varchar(20)` | `manual`, `csv`, or `bank` — set by the backend, never by the frontend |
 | `classified` | `boolean` | `false` until prediction service has processed this row |
 | `created_at` | `timestamptz` | |
 

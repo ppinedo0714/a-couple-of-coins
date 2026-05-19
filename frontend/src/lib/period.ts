@@ -1,4 +1,4 @@
-export type PeriodKey = 'this-month' | 'last-month' | 'last-3-months' | 'custom'
+export type PeriodKey = 'this-month' | 'last-month' | 'last-3-months' | 'this-year' | 'last-year' | 'custom'
 
 export type PeriodRange = {
   key: PeriodKey
@@ -13,12 +13,8 @@ function toIsoDate(d: Date): string {
   return `${year}-${month}-${day}`
 }
 
-function startOfMonth(d: Date): Date {
-  return new Date(d.getFullYear(), d.getMonth(), 1)
-}
-
-function endOfMonth(d: Date): Date {
-  return new Date(d.getFullYear(), d.getMonth() + 1, 0)
+export function historyStartIso(): string {
+  return `${new Date().getFullYear() - 3}-01-01`
 }
 
 export function periodToRange(key: PeriodKey, customFrom?: string, customTo?: string): PeriodRange {
@@ -26,30 +22,45 @@ export function periodToRange(key: PeriodKey, customFrom?: string, customTo?: st
   if (key === 'this-month') {
     return {
       key,
-      from: toIsoDate(startOfMonth(today)),
-      to: toIsoDate(endOfMonth(today)),
+      from: `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`,
+      to: toIsoDate(today),
     }
   }
   if (key === 'last-month') {
-    const lastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1)
+    const from = new Date(today.getFullYear(), today.getMonth() - 1, 1)
     return {
       key,
-      from: toIsoDate(startOfMonth(lastMonth)),
-      to: toIsoDate(endOfMonth(lastMonth)),
+      from: toIsoDate(from),
+      to: toIsoDate(today),
     }
   }
   if (key === 'last-3-months') {
-    const start = new Date(today.getFullYear(), today.getMonth() - 2, 1)
+    const from = new Date(today.getFullYear(), today.getMonth() - 3, 1)
     return {
       key,
-      from: toIsoDate(startOfMonth(start)),
-      to: toIsoDate(endOfMonth(today)),
+      from: toIsoDate(from),
+      to: toIsoDate(today),
+    }
+  }
+  if (key === 'this-year') {
+    return {
+      key,
+      from: `${today.getFullYear()}-01-01`,
+      to: toIsoDate(today),
+    }
+  }
+  if (key === 'last-year') {
+    const y = today.getFullYear() - 1
+    return {
+      key,
+      from: `${y}-01-01`,
+      to: `${y}-12-31`,
     }
   }
   return {
     key: 'custom',
-    from: customFrom ?? toIsoDate(startOfMonth(today)),
-    to: customTo ?? toIsoDate(endOfMonth(today)),
+    from: customFrom ?? toIsoDate(today),
+    to: customTo ?? toIsoDate(today),
   }
 }
 
@@ -61,6 +72,10 @@ export function periodLabel(key: PeriodKey): string {
       return 'Last month'
     case 'last-3-months':
       return 'Last 3 months'
+    case 'this-year':
+      return 'This year'
+    case 'last-year':
+      return 'Last year'
     case 'custom':
       return 'Custom'
   }

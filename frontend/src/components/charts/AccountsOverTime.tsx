@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/select'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { formatCurrency, formatShortDate } from '@/lib/format'
+import { historyStartIso } from '@/lib/period'
 
 type TimeRange = '1M' | '3M' | '6M' | '1Y' | 'ALL'
 
@@ -36,7 +37,7 @@ const LINE_COLORS = ['var(--primary)', 'var(--accent)', 'var(--muted-foreground)
 const NET_WORTH_KEY = '__net_worth__'
 
 function getFromDate(range: TimeRange): string {
-  if (range === 'ALL') return '2025-01-01'
+  if (range === 'ALL') return historyStartIso()
   const d = new Date()
   if (range === '1M') d.setMonth(d.getMonth() - 1)
   else if (range === '3M') d.setMonth(d.getMonth() - 3)

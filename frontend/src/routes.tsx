@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Route, Routes } from 'react-router-dom'
 import { ProtectedRoute, UnprotectedRoute } from '@/components/layout/ProtectedRoute'
 import WelcomePage from '@/pages/Welcome'
 import LoginPage from '@/pages/Login'
@@ -22,7 +22,6 @@ export function AppRoutes() {
 
       <Route element={<ProtectedRoute />}>
         <Route path="/onboarding" element={<OnboardingPage />} />
-        <Route path="/dashboard" element={<Navigate to="/accounts" replace />} />
         <Route path="/accounts" element={<AccountsPage />} />
         <Route path="/transactions" element={<TransactionsPage />} />
         <Route path="/import" element={<ImportPage />} />

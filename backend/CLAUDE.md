@@ -27,7 +27,25 @@ Full architecture docs live in `docs/`:
 
 ## Structure
 
-To be documented once the service is scaffolded.
+```
+backend/
+├── cmd/
+│   └── api/
+│       └── main.go         # entry point — wires config, DB, router, starts server
+├── internal/
+│   ├── config/             # env var loading (godotenv)
+│   ├── db/                 # pgx connection pool setup
+│   ├── auth/               # JWT creation/validation, bcrypt helpers, OAuth client
+│   ├── models/             # Go structs matching DB tables (User, Account, Transaction, ...)
+│   ├── repository/         # DB queries, one file per table
+│   ├── services/           # business logic, one file per domain
+│   └── handlers/           # HTTP handlers (chi router), one file per resource group
+├── migrations/             # goose SQL migration files
+├── go.mod
+└── go.sum
+```
+
+Layer rules (one-way dependency): `handlers` → `services` → `repository`. Handlers never call repository directly; services never import handlers.
 
 ## Conventions
 

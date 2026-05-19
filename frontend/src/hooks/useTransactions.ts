@@ -1,18 +1,23 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient, type UseQueryOptions } from '@tanstack/react-query'
 import * as transactionsApi from '@/api/transactions'
 import { accountsKey } from './useAccounts'
 import type {
   CreateTransactionRequest,
   ListTransactionsQuery,
+  ListTransactionsResponse,
   UpdateTransactionRequest,
 } from '@/types/api'
 
 export const transactionsKey = (query: ListTransactionsQuery = {}) => ['transactions', query] as const
 
-export function useTransactions(query: ListTransactionsQuery = {}) {
+export function useTransactions(
+  query: ListTransactionsQuery = {},
+  options?: Omit<UseQueryOptions<ListTransactionsResponse>, 'queryKey' | 'queryFn'>,
+) {
   return useQuery({
     queryKey: transactionsKey(query),
     queryFn: () => transactionsApi.listTransactions(query),
+    ...options,
   })
 }
 
@@ -32,7 +37,10 @@ export function useUpdateTransaction() {
   return useMutation({
     mutationFn: ({ id, body }: { id: string; body: UpdateTransactionRequest }) =>
       transactionsApi.updateTransaction(id, body),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['transactions'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['transactions'] })
+      queryClient.invalidateQueries({ queryKey: accountsKey })
+    },
   })
 }
 

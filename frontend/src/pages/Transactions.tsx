@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { keepPreviousData } from '@tanstack/react-query'
 import { Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAccounts } from '@/hooks/useAccounts'
@@ -29,16 +29,15 @@ import { periodLabel, periodToRange, type PeriodKey } from '@/lib/period'
 const PAGE_SIZE = 50
 
 export default function TransactionsPage() {
-  const [searchParams, setSearchParams] = useSearchParams()
-  const periodKey = (searchParams.get('period') as PeriodKey | null) ?? 'this-month'
-  const accountId = searchParams.get('account_id')
-  const categoryId = searchParams.get('category_id')
-  const search = searchParams.get('search') ?? ''
+  const [periodKey, setPeriodKey] = useState<PeriodKey>('this-month')
+  const [accountId, setAccountId] = useState<string | null>(null)
+  const [categoryId, setCategoryId] = useState<string | null>(null)
+  const [search, setSearch] = useState('')
+  const [customFrom, setCustomFrom] = useState<string | undefined>(undefined)
+  const [customTo, setCustomTo] = useState<string | undefined>(undefined)
   const [page, setPage] = useState(0)
   const [customOpen, setCustomOpen] = useState(false)
 
-  const customFrom = searchParams.get('from') ?? undefined
-  const customTo = searchParams.get('to') ?? undefined
   const range = useMemo(
     () => periodToRange(periodKey, customFrom, customTo),
     [periodKey, customFrom, customTo],
@@ -47,60 +46,47 @@ export default function TransactionsPage() {
   const accountsQuery = useAccounts()
   const categoriesQuery = useCategories()
   const classifyMutation = useClassifyTransactions()
-  const allTxQuery = useTransactions({ from: range.from, to: range.to, limit: 200 })
-  const filteredTxQuery = useTransactions({
-    from: range.from,
-    to: range.to,
-    account_id: accountId ?? undefined,
-    category_id: categoryId ?? undefined,
-    search: search || undefined,
-    limit: PAGE_SIZE,
-    offset: page * PAGE_SIZE,
-  })
 
-  const updateParam = (key: string, value: string | null) => {
-    const next = new URLSearchParams(searchParams)
-    if (value === null || value === '') next.delete(key)
-    else next.set(key, value)
-    setSearchParams(next, { replace: true })
-    setPage(0)
-  }
+  const chartQuery = useTransactions(
+    { from: range.from, to: range.to, limit: 2000 },
+    { placeholderData: keepPreviousData },
+  )
 
-  const filterValue: TransactionFilterValue = {
-    accountId: accountId,
-    categoryId: categoryId,
-    search,
-  }
+  const tableQuery = useTransactions(
+    {
+      from: range.from,
+      to: range.to,
+      account_id: accountId ?? undefined,
+      category_id: categoryId ?? undefined,
+      search: search || undefined,
+      limit: PAGE_SIZE,
+      offset: page * PAGE_SIZE,
+    },
+    { placeholderData: keepPreviousData },
+  )
+
+  const categories = categoriesQuery.data ?? []
+  const filterValue: TransactionFilterValue = { accountId, categoryId, search }
 
   const onFilterChange = (next: TransactionFilterValue) => {
-    const params = new URLSearchParams(searchParams)
-    if (next.accountId) params.set('account_id', next.accountId)
-    else params.delete('account_id')
-    if (next.categoryId) params.set('category_id', next.categoryId)
-    else params.delete('category_id')
-    if (next.search) params.set('search', next.search)
-    else params.delete('search')
-    setSearchParams(params, { replace: true })
+    setAccountId(next.accountId ?? null)
+    setCategoryId(next.categoryId ?? null)
+    setSearch(next.search ?? '')
     setPage(0)
   }
 
   const onPeriodChange = (next: PeriodKey) => {
-    const params = new URLSearchParams(searchParams)
-    if (next === 'this-month') params.delete('period')
-    else params.set('period', next)
+    setPeriodKey(next)
     if (next !== 'custom') {
-      params.delete('from')
-      params.delete('to')
+      setCustomFrom(undefined)
+      setCustomTo(undefined)
     }
-    setSearchParams(params, { replace: true })
     setPage(0)
   }
 
   const onCustomDateChange = (key: 'from' | 'to', value: string) => {
-    const params = new URLSearchParams(searchParams)
-    if (value) params.set(key, value)
-    else params.delete(key)
-    setSearchParams(params, { replace: true })
+    if (key === 'from') setCustomFrom(value || undefined)
+    else setCustomTo(value || undefined)
     setPage(0)
   }
 
@@ -113,10 +99,8 @@ export default function TransactionsPage() {
   }
 
   const accounts = accountsQuery.data ?? []
-  const categories = categoriesQuery.data ?? []
-  const allTransactions = allTxQuery.data?.transactions ?? []
-  const filteredTransactions = filteredTxQuery.data?.transactions ?? []
-  const hasUncategorized = allTransactions.some((t) => t.category_id === null)
+  const chartTransactions = chartQuery.data?.transactions ?? []
+  const hasUncategorized = chartTransactions.some((t) => t.category_id === null)
 
   const onClassify = async () => {
     try {
@@ -150,6 +134,8 @@ export default function TransactionsPage() {
               <SelectItem value="this-month">This month</SelectItem>
               <SelectItem value="last-month">Last month</SelectItem>
               <SelectItem value="last-3-months">Last 3 months</SelectItem>
+              <SelectItem value="this-year">This year</SelectItem>
+              <SelectItem value="last-year">Last year</SelectItem>
               <SelectItem value="custom">Custom range</SelectItem>
             </SelectContent>
           </Select>
@@ -190,17 +176,17 @@ export default function TransactionsPage() {
         </div>
       </div>
 
-      <section className="grid gap-6 lg:grid-cols-2">
-        <SpendingByCategory transactions={allTransactions} categories={categories} />
-        <SpendingOverTime transactions={allTransactions} />
+      <section>
+        <SpendingOverTime transactions={chartTransactions} dateRange={range} />
       </section>
 
-      <section>
+      <section className="grid gap-6 lg:grid-cols-2">
+        <SpendingByCategory transactions={chartTransactions} categories={categories} />
         <CategoryBreakdown
-          transactions={allTransactions}
+          transactions={chartTransactions}
           categories={categories}
           selectedCategoryId={categoryId}
-          onSelect={(id) => updateParam('category_id', id)}
+          onSelect={(id) => { setCategoryId(id); setPage(0) }}
         />
       </section>
 
@@ -230,14 +216,14 @@ export default function TransactionsPage() {
           onChange={onFilterChange}
         />
         <TransactionTable
-          transactions={filteredTransactions}
-          total={filteredTxQuery.data?.total ?? 0}
+          transactions={tableQuery.data?.transactions ?? []}
+          total={tableQuery.data?.total ?? 0}
           page={page}
           pageSize={PAGE_SIZE}
           onPageChange={setPage}
           accounts={accounts}
           categories={categories}
-          loading={filteredTxQuery.isLoading}
+          loading={tableQuery.isLoading}
         />
       </section>
     </PageWrapper>
