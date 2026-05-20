@@ -6,81 +6,81 @@
 erDiagram
     users {
         uuid        id              PK
-        varchar     email           UK  "not null"
-        varchar     password_hash       "nullable — null for OAuth-only users"
-        timestamptz created_at          "not null, default now()"
+        varchar     email           UK
+        varchar     password_hash
+        timestamptz created_at
     }
 
     oauth_connections {
         uuid        id              PK
-        uuid        user_id         FK  "not null"
-        varchar     provider            "not null — google | github"
-        varchar     provider_user_id    "not null"
-        timestamptz created_at          "not null, default now()"
+        uuid        user_id         FK
+        varchar     provider
+        varchar     provider_user_id
+        timestamptz created_at
     }
 
     accounts {
         uuid        id              PK
-        uuid        user_id         FK  "not null"
-        varchar     name                "not null"
-        varchar     type                "not null — checking | savings | credit | investment"
-        numeric     balance             "not null, default 0"
-        varchar     currency            "not null, default USD"
-        timestamptz created_at          "not null, default now()"
+        uuid        user_id         FK
+        varchar     name
+        varchar     type
+        numeric     balance
+        varchar     currency
+        timestamptz created_at
     }
 
     categories {
         uuid        id              PK
-        uuid        user_id         FK  "not null"
-        uuid        parent_id       FK  "nullable — references categories.id; null = Group, non-null = Category"
-        varchar     name                "not null"
-        varchar     color               "nullable — hex color e.g. #FF5733; only set when parent_id IS NULL"
-        timestamptz created_at          "not null, default now()"
+        uuid        user_id         FK
+        uuid        parent_id       FK
+        varchar     name
+        varchar     color
+        timestamptz created_at
     }
 
     transactions {
         uuid        id              PK
-        uuid        user_id         FK  "not null"
-        uuid        account_id      FK  "not null"
-        uuid        category_id     FK  "nullable — assigned by user or prediction service"
-        numeric     amount              "not null — positive = income, negative = expense"
-        varchar     description         "not null — raw text from bank or user entry"
-        varchar     merchant_name       "nullable — normalized name from prediction service"
-        date        date                "not null"
-        varchar     source              "not null — manual | csv | bank"
-        boolean     classified          "not null, default false"
-        timestamptz created_at          "not null, default now()"
+        uuid        user_id         FK
+        uuid        account_id      FK
+        uuid        category_id     FK
+        numeric     amount
+        varchar     description
+        varchar     merchant_name
+        date        date
+        varchar     source
+        boolean     classified
+        timestamptz created_at
+    }
+
+    account_balance_snapshots {
+        uuid        id              PK
+        uuid        account_id      FK
+        numeric     balance
+        date        date
+        timestamptz created_at
     }
 
     import_jobs {
         uuid        id              PK
-        uuid        user_id         FK  "not null"
-        varchar     status              "not null — pending | processing | done | failed"
-        varchar     source_type         "not null — csv"
-        varchar     file_name           "not null"
-        integer     rows_total          "nullable — set after file is parsed"
-        integer     rows_imported       "not null, default 0"
-        timestamptz created_at          "not null, default now()"
-        timestamptz completed_at        "nullable — set when status = done | failed"
+        uuid        user_id         FK
+        varchar     status
+        varchar     source_type
+        varchar     file_name
+        integer     rows_total
+        integer     rows_imported
+        timestamptz created_at
+        timestamptz completed_at
     }
 
-    users            ||--o{ oauth_connections : "has"
-    users            ||--o{ accounts          : "owns"
-    users            ||--o{ categories        : "defines"
-    users            ||--o{ transactions      : "records"
-    users            ||--o{ import_jobs       : "runs"
-    categories       ||--o{ categories        : "parent of"
-    account_balance_snapshots {
-        uuid        id              PK
-        uuid        account_id      FK  "not null"
-        numeric     balance             "not null — end-of-day balance"
-        date        date                "not null — the calendar date of this snapshot"
-        timestamptz created_at          "not null, default now()"
-    }
-
-    accounts         ||--o{ transactions              : "contains"
-    accounts         ||--o{ account_balance_snapshots : "tracks"
-    categories       ||--o{ transactions              : "classifies"
+    users            ||--o{ oauth_connections          : "has"
+    users            ||--o{ accounts                   : "owns"
+    users            ||--o{ categories                 : "defines"
+    users            ||--o{ transactions               : "records"
+    users            ||--o{ import_jobs                : "runs"
+    categories       ||--o{ categories                 : "parent of"
+    accounts         ||--o{ transactions               : "contains"
+    accounts         ||--o{ account_balance_snapshots  : "tracks"
+    categories       ||--o{ transactions               : "classifies"
 ```
 
 ## Table Descriptions

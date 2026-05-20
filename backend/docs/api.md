@@ -16,6 +16,24 @@ All request and response bodies are JSON. All timestamps are ISO 8601 (`2024-01-
 
 **Date fields** (e.g. `from`, `to`, transaction `date`) use `YYYY-MM-DD` calendar dates with no timezone component — treat as UTC midnight.
 
+## Error Responses
+
+All error responses use the same JSON shape:
+
+```json
+{
+  "error": "human-readable message"
+}
+```
+
+| Status | Meaning |
+|--------|---------|
+| `400` | Validation failed — malformed JSON, missing required field, invalid enum value |
+| `401` | Not authenticated — missing or invalid auth cookie |
+| `404` | Resource not found or not owned by the authenticated user |
+| `409` | Conflict — e.g. duplicate email, account has transactions, duplicate category name |
+| `500` | Internal server error — logged server-side; generic message returned to client |
+
 ---
 
 ## Auth
@@ -383,7 +401,7 @@ Auth required. Create a transaction manually.
 
 `category_id` is optional. `amount` is signed (negative = expense).
 
-The backend sets `source = "manual"` and `classified = false` on creation. `merchant_name` starts null and is populated by the prediction service after classification. These fields are not accepted from the request body.
+The backend sets `source = "manual"` and `classified = true` on creation — the user has already described the transaction, so it does not need prediction-service processing. `merchant_name` is left null for manually-created transactions. These fields are not accepted from the request body.
 
 After insert, the backend updates `accounts.balance` by the transaction amount and upserts a row in `account_balance_snapshots` for the transaction date.
 
@@ -435,11 +453,15 @@ Auth required. Delete a transaction. Updates the parent account balance.
 ---
 
 ### `POST /transactions/classify`
-Auth required. Sends all unclassified transactions (for the current user) to the prediction service. The prediction service returns a suggested `category_id` and normalized `merchant_name` for each.
+Auth required. Sends all unclassified transactions (for the current user) to the prediction service. The prediction service returns a `category_id` from the user's existing categories and a normalized `merchant_name` for each transaction.
 
 **Request** — no body required (classifies all unclassified transactions for the user)
 
-The backend fetches all transactions where `classified = false` for the user, POSTs them to `services/predictions`, then writes back the returned `category_id` and `merchant_name` and sets `classified = true`.
+The backend:
+1. Fetches all transactions where `classified = false` for the user
+2. Fetches all categories owned by the user
+3. POSTs both to `services/predictions` (see [Prediction Service Internal Contract](#prediction-service-internal-contract))
+4. Writes back the returned `category_id` and `merchant_name` and sets `classified = true` for each matched transaction
 
 **Response `200`**
 ```json
@@ -518,3 +540,53 @@ No auth required. Used for uptime checks.
   "version": "1.0.0"
 }
 ```
+
+---
+
+## Prediction Service Internal Contract
+
+This section documents the HTTP contract between the Go backend and the Python prediction service (`services/predictions`, port 8001). The frontend never calls this service directly.
+
+### `POST /classify`
+
+The backend sends unclassified transactions alongside the user's full category list. The service returns a best-matching `category_id` from that list for each transaction.
+
+**Request**
+```json
+{
+  "transactions": [
+    {
+      "id": "uuid",
+      "description": "WHOLE FOODS MARKET #123",
+      "amount": -42.50
+    }
+  ],
+  "categories": [
+    {
+      "id": "uuid",
+      "name": "Groceries",
+      "parent_name": "Food"
+    }
+  ]
+}
+```
+
+- `categories` contains all of the user's categories (both Groups and Categories). `parent_name` is the Group name for a Category, or `null` for a Group row.
+- Transactions with no matching category should have `category_id` omitted or `null` in the response.
+
+**Response `200`**
+```json
+{
+  "predictions": [
+    {
+      "transaction_id": "uuid",
+      "category_id": "uuid",
+      "merchant_name": "Whole Foods"
+    }
+  ]
+}
+```
+
+- `category_id` must reference one of the UUIDs sent in the request's `categories` list.
+- `merchant_name` is a normalized, human-readable name derived from the raw `description`.
+- If the service cannot classify a transaction, omit its entry from `predictions` — the backend will leave it `classified = false`.

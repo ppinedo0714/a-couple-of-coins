@@ -67,7 +67,9 @@ backend/
 │   ├── 002_create_accounts.sql
 │   ├── 003_create_categories.sql
 │   ├── 004_create_transactions.sql
-│   └── 005_create_import_jobs.sql
+│   ├── 005_create_import_jobs.sql
+│   ├── 006_create_oauth_connections.sql
+│   └── 007_create_account_balance_snapshots.sql
 ├── go.mod
 ├── go.sum
 └── CLAUDE.md
