@@ -10,8 +10,6 @@ import (
 	"github.com/ppinedo/a-couple-of-coins/backend/internal/models"
 )
 
-var ErrNotFound = errors.New("not found")
-
 type UserRepository interface {
 	Create(ctx context.Context, email, passwordHash string) (*models.User, error)
 	GetByEmail(ctx context.Context, email string) (*models.User, error)
