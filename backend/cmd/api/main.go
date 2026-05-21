@@ -1,0 +1,106 @@
+package main
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"net/http"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
+	"github.com/ppinedo/a-couple-of-coins/backend/internal/auth"
+	"github.com/ppinedo/a-couple-of-coins/backend/internal/config"
+	"github.com/ppinedo/a-couple-of-coins/backend/internal/db"
+	"github.com/ppinedo/a-couple-of-coins/backend/internal/handlers"
+	"github.com/ppinedo/a-couple-of-coins/backend/internal/repository"
+)
+
+func main() {
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatalf("failed to load config: %v", err)
+	}
+
+	pool, err := db.New(context.Background(), cfg.DatabaseURL)
+	if err != nil {
+		log.Fatalf("failed to connect to database: %v", err)
+	}
+	defer pool.Close()
+
+	userRepo := repository.NewUserRepository(pool)
+
+	googleCfg := auth.GoogleConfig(
+		cfg.GoogleClientID,
+		cfg.GoogleClientSecret,
+		cfg.FrontendURL+"/api/v1/auth/oauth/google/callback",
+	)
+	githubCfg := auth.GitHubConfig(
+		cfg.GitHubClientID,
+		cfg.GitHubClientSecret,
+		cfg.FrontendURL+"/api/v1/auth/oauth/github/callback",
+	)
+
+	authHandler := handlers.NewAuthHandler(userRepo, cfg.JWTSecret, cfg.FrontendURL, googleCfg, githubCfg)
+	usersHandler := handlers.NewUsersHandler(userRepo, cfg.JWTSecret)
+
+	r := chi.NewRouter()
+
+	r.Use(middleware.RequestID)
+	r.Use(middleware.Recoverer)
+	r.Use(corsMiddleware(cfg.FrontendURL))
+
+	r.Get("/health", handlers.Health)
+
+	r.Route("/api/v1", func(r chi.Router) {
+		// Auth routes (no auth required)
+		r.Route("/auth", func(r chi.Router) {
+			r.Post("/register", authHandler.Register)
+			r.Post("/login", authHandler.Login)
+			r.Post("/logout", authHandler.Logout)
+			r.Get("/oauth/google", authHandler.GoogleOAuth)
+			r.Get("/oauth/google/callback", authHandler.GoogleOAuthCallback)
+			r.Get("/oauth/github", authHandler.GitHubOAuth)
+			r.Get("/oauth/github/callback", authHandler.GitHubOAuthCallback)
+		})
+
+		// Protected routes
+		r.Group(func(r chi.Router) {
+			r.Use(auth.Middleware(cfg.JWTSecret))
+
+			r.Route("/users", func(r chi.Router) {
+				r.Get("/me", usersHandler.GetMe)
+				r.Put("/me", usersHandler.UpdateMe)
+			})
+
+			// Stub mounts for future slices
+			r.Mount("/accounts", chi.NewRouter())
+			r.Mount("/categories", chi.NewRouter())
+			r.Mount("/transactions", chi.NewRouter())
+			r.Mount("/import", chi.NewRouter())
+		})
+	})
+
+	addr := fmt.Sprintf(":%s", cfg.Port)
+	log.Printf("starting server on %s", addr)
+	if err := http.ListenAndServe(addr, r); err != nil {
+		log.Fatalf("server error: %v", err)
+	}
+}
+
+func corsMiddleware(frontendURL string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Access-Control-Allow-Origin", frontendURL)
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+
+			if r.Method == http.MethodOptions {
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+
+			next.ServeHTTP(w, r)
+		})
+	}
+}
