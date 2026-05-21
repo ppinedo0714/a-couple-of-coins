@@ -14,6 +14,7 @@ import (
 	"github.com/ppinedo/a-couple-of-coins/backend/internal/handlers"
 	"github.com/ppinedo/a-couple-of-coins/backend/internal/repository"
 	"github.com/ppinedo/a-couple-of-coins/backend/internal/services"
+	"github.com/ppinedo/a-couple-of-coins/backend/internal/services/predictor"
 )
 
 func main() {
@@ -31,9 +32,13 @@ func main() {
 	userRepo := repository.NewUserRepository(pool)
 	accountRepo := repository.NewAccountRepository(pool)
 	categoryRepo := repository.NewCategoryRepository(pool)
+	transactionRepo := repository.NewTransactionRepository(pool)
 
 	accountSvc := services.NewAccountService(accountRepo)
 	categorySvc := services.NewCategoryService(categoryRepo)
+
+	predictorClient := predictor.NewHTTPPredictorClient(cfg.PredictionsServiceURL)
+	transactionSvc := services.NewTransactionService(pool, transactionRepo, accountRepo, categoryRepo, predictorClient)
 
 	googleCfg := auth.GoogleConfig(
 		cfg.GoogleClientID,
@@ -50,6 +55,7 @@ func main() {
 	usersHandler := handlers.NewUsersHandler(userRepo, cfg.JWTSecret)
 	accountsHandler := handlers.NewAccountsHandler(accountSvc)
 	categoriesHandler := handlers.NewCategoriesHandler(categorySvc)
+	transactionsHandler := handlers.NewTransactionsHandler(transactionSvc)
 
 	r := chi.NewRouter()
 
@@ -97,8 +103,16 @@ func main() {
 				r.Delete("/{id}", categoriesHandler.Delete)
 			})
 
-			// Stub mounts for future slices
-			r.Mount("/transactions", chi.NewRouter())
+			r.Route("/transactions", func(r chi.Router) {
+				// classify must be registered before /{id} so chi doesn't treat "classify" as an ID
+				r.Post("/classify", transactionsHandler.Classify)
+				r.Get("/", transactionsHandler.List)
+				r.Post("/", transactionsHandler.Create)
+				r.Get("/{id}", transactionsHandler.Get)
+				r.Put("/{id}", transactionsHandler.Update)
+				r.Delete("/{id}", transactionsHandler.Delete)
+			})
+
 			r.Mount("/import", chi.NewRouter())
 		})
 	})
