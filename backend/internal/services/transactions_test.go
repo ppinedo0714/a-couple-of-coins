@@ -105,6 +105,10 @@ func (m *mockTransactionRepository) SumByAccountFromDate(ctx context.Context, tx
 	return 0, nil
 }
 
+func (m *mockTransactionRepository) BulkInsert(_ context.Context, _ []repository.CreateTransactionParams) (int, error) {
+	return 0, nil
+}
+
 type mockAccountRepository struct {
 	getByIDFn           func(ctx context.Context, id, userID uuid.UUID) (*models.Account, error)
 	updateBalanceCalls  []updateBalanceCall
@@ -143,6 +147,14 @@ func (m *mockAccountRepository) ListBalanceSnapshots(_ context.Context, _ []uuid
 }
 func (m *mockAccountRepository) UpsertBalanceSnapshot(_ context.Context, _ pgx.Tx, accountID uuid.UUID, date time.Time, balance float64) error {
 	m.upsertSnapshotCalls = append(m.upsertSnapshotCalls, upsertSnapshotCall{accountID, date, balance})
+	return nil
+}
+
+func (m *mockAccountRepository) UpdateBalanceDirect(_ context.Context, _ uuid.UUID, _ float64) error {
+	return nil
+}
+
+func (m *mockAccountRepository) UpsertBalanceSnapshotDirect(_ context.Context, _ uuid.UUID, _ time.Time, _ float64) error {
 	return nil
 }
 

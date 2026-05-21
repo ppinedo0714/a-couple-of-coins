@@ -14,6 +14,7 @@ import (
 	"github.com/ppinedo/a-couple-of-coins/backend/internal/handlers"
 	"github.com/ppinedo/a-couple-of-coins/backend/internal/repository"
 	"github.com/ppinedo/a-couple-of-coins/backend/internal/services"
+	"github.com/ppinedo/a-couple-of-coins/backend/internal/services/importer"
 	"github.com/ppinedo/a-couple-of-coins/backend/internal/services/predictor"
 )
 
@@ -33,12 +34,14 @@ func main() {
 	accountRepo := repository.NewAccountRepository(pool)
 	categoryRepo := repository.NewCategoryRepository(pool)
 	transactionRepo := repository.NewTransactionRepository(pool)
+	importJobRepo := repository.NewImportJobRepository(pool)
 
 	accountSvc := services.NewAccountService(accountRepo)
 	categorySvc := services.NewCategoryService(categoryRepo)
 
 	predictorClient := predictor.NewHTTPPredictorClient(cfg.PredictionsServiceURL)
 	transactionSvc := services.NewTransactionService(pool, transactionRepo, accountRepo, categoryRepo, predictorClient)
+	csvImporter := importer.New(importJobRepo, transactionRepo, accountRepo)
 
 	googleCfg := auth.GoogleConfig(
 		cfg.GoogleClientID,
@@ -56,6 +59,7 @@ func main() {
 	accountsHandler := handlers.NewAccountsHandler(accountSvc)
 	categoriesHandler := handlers.NewCategoriesHandler(categorySvc)
 	transactionsHandler := handlers.NewTransactionsHandler(transactionSvc)
+	importsHandler := handlers.NewImportsHandler(importJobRepo, csvImporter, accountRepo)
 
 	r := chi.NewRouter()
 
@@ -113,7 +117,11 @@ func main() {
 				r.Delete("/{id}", transactionsHandler.Delete)
 			})
 
-			r.Mount("/import", chi.NewRouter())
+			r.Route("/import", func(r chi.Router) {
+					r.Post("/csv", importsHandler.UploadCSV)
+					r.Get("/jobs", importsHandler.ListJobs)
+					r.Get("/jobs/{id}", importsHandler.GetJob)
+				})
 		})
 	})
 

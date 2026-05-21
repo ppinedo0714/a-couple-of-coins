@@ -25,8 +25,10 @@ type AccountRepository interface {
 	Update(ctx context.Context, id, userID uuid.UUID, fields AccountUpdateFields) (*models.Account, error)
 	Delete(ctx context.Context, id, userID uuid.UUID) error
 	UpdateBalance(ctx context.Context, tx pgx.Tx, id uuid.UUID, delta float64) error
+	UpdateBalanceDirect(ctx context.Context, id uuid.UUID, delta float64) error
 	ListBalanceSnapshots(ctx context.Context, accountIDs []uuid.UUID, from, to time.Time, interval string) ([]models.BalanceSnapshot, error)
 	UpsertBalanceSnapshot(ctx context.Context, tx pgx.Tx, accountID uuid.UUID, date time.Time, balance float64) error
+	UpsertBalanceSnapshotDirect(ctx context.Context, accountID uuid.UUID, date time.Time, balance float64) error
 }
 
 type pgxAccountRepository struct {
@@ -214,6 +216,24 @@ func (r *pgxAccountRepository) ListBalanceSnapshots(ctx context.Context, account
 
 func (r *pgxAccountRepository) UpsertBalanceSnapshot(ctx context.Context, tx pgx.Tx, accountID uuid.UUID, date time.Time, balance float64) error {
 	_, err := tx.Exec(ctx,
+		`INSERT INTO account_balance_snapshots (account_id, date, balance)
+		 VALUES ($1, $2, $3)
+		 ON CONFLICT (account_id, date) DO UPDATE SET balance = EXCLUDED.balance`,
+		accountID, date, balance,
+	)
+	return err
+}
+
+func (r *pgxAccountRepository) UpdateBalanceDirect(ctx context.Context, id uuid.UUID, delta float64) error {
+	_, err := r.pool.Exec(ctx,
+		`UPDATE accounts SET balance = balance + $2 WHERE id = $1`,
+		id, delta,
+	)
+	return err
+}
+
+func (r *pgxAccountRepository) UpsertBalanceSnapshotDirect(ctx context.Context, accountID uuid.UUID, date time.Time, balance float64) error {
+	_, err := r.pool.Exec(ctx,
 		`INSERT INTO account_balance_snapshots (account_id, date, balance)
 		 VALUES ($1, $2, $3)
 		 ON CONFLICT (account_id, date) DO UPDATE SET balance = EXCLUDED.balance`,

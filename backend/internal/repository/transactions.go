@@ -53,6 +53,7 @@ type TransactionRepository interface {
 	SumByAccountAndDate(ctx context.Context, tx pgx.Tx, accountID uuid.UUID, date time.Time) (float64, error)
 	DeleteBalanceSnapshot(ctx context.Context, tx pgx.Tx, accountID uuid.UUID, date time.Time) error
 	SumByAccountFromDate(ctx context.Context, tx pgx.Tx, accountID uuid.UUID, fromDate time.Time) (float64, error)
+	BulkInsert(ctx context.Context, transactions []CreateTransactionParams) (int, error)
 }
 
 type pgxTransactionRepository struct {
@@ -290,4 +291,26 @@ func (r *pgxTransactionRepository) SumByAccountFromDate(ctx context.Context, tx 
 		accountID, fromDate,
 	).Scan(&sum)
 	return sum, err
+}
+
+func (r *pgxTransactionRepository) BulkInsert(ctx context.Context, transactions []CreateTransactionParams) (int, error) {
+	if len(transactions) == 0 {
+		return 0, nil
+	}
+
+	rows := make([][]interface{}, len(transactions))
+	for i, t := range transactions {
+		rows[i] = []interface{}{t.UserID, t.AccountID, t.CategoryID, t.Amount, t.Description, t.Date, t.Source, t.Classified}
+	}
+
+	n, err := r.pool.CopyFrom(
+		ctx,
+		pgx.Identifier{"transactions"},
+		[]string{"user_id", "account_id", "category_id", "amount", "description", "date", "source", "classified"},
+		pgx.CopyFromRows(rows),
+	)
+	if err != nil {
+		return 0, fmt.Errorf("bulk insert transactions: %w", err)
+	}
+	return int(n), nil
 }

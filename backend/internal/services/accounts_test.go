@@ -48,6 +48,14 @@ func (m *mockAccountRepo) UpsertBalanceSnapshot(ctx context.Context, tx pgx.Tx, 
 	return m.upsertBalanceSnapshotFn(ctx, tx, accountID, date, balance)
 }
 
+func (m *mockAccountRepo) UpdateBalanceDirect(_ context.Context, _ uuid.UUID, _ float64) error {
+	return nil
+}
+
+func (m *mockAccountRepo) UpsertBalanceSnapshotDirect(_ context.Context, _ uuid.UUID, _ time.Time, _ float64) error {
+	return nil
+}
+
 func makeAccount(userID uuid.UUID) *models.Account {
 	return &models.Account{
 		ID:        uuid.New(),
