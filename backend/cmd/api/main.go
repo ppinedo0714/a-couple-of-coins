@@ -13,6 +13,7 @@ import (
 	"github.com/ppinedo/a-couple-of-coins/backend/internal/db"
 	"github.com/ppinedo/a-couple-of-coins/backend/internal/handlers"
 	"github.com/ppinedo/a-couple-of-coins/backend/internal/repository"
+	"github.com/ppinedo/a-couple-of-coins/backend/internal/services"
 )
 
 func main() {
@@ -28,6 +29,11 @@ func main() {
 	defer pool.Close()
 
 	userRepo := repository.NewUserRepository(pool)
+	accountRepo := repository.NewAccountRepository(pool)
+	categoryRepo := repository.NewCategoryRepository(pool)
+
+	accountSvc := services.NewAccountService(accountRepo)
+	categorySvc := services.NewCategoryService(categoryRepo)
 
 	googleCfg := auth.GoogleConfig(
 		cfg.GoogleClientID,
@@ -42,6 +48,8 @@ func main() {
 
 	authHandler := handlers.NewAuthHandler(userRepo, cfg.JWTSecret, cfg.FrontendURL, googleCfg, githubCfg)
 	usersHandler := handlers.NewUsersHandler(userRepo, cfg.JWTSecret)
+	accountsHandler := handlers.NewAccountsHandler(accountSvc)
+	categoriesHandler := handlers.NewCategoriesHandler(categorySvc)
 
 	r := chi.NewRouter()
 
@@ -72,9 +80,24 @@ func main() {
 				r.Put("/me", usersHandler.UpdateMe)
 			})
 
+			r.Route("/accounts", func(r chi.Router) {
+				// /history must be registered before /{id} so chi doesn't treat "history" as an ID
+				r.Get("/history", accountsHandler.History)
+				r.Get("/", accountsHandler.List)
+				r.Post("/", accountsHandler.Create)
+				r.Get("/{id}", accountsHandler.Get)
+				r.Put("/{id}", accountsHandler.Update)
+				r.Delete("/{id}", accountsHandler.Delete)
+			})
+
+			r.Route("/categories", func(r chi.Router) {
+				r.Get("/", categoriesHandler.List)
+				r.Post("/", categoriesHandler.Create)
+				r.Put("/{id}", categoriesHandler.Update)
+				r.Delete("/{id}", categoriesHandler.Delete)
+			})
+
 			// Stub mounts for future slices
-			r.Mount("/accounts", chi.NewRouter())
-			r.Mount("/categories", chi.NewRouter())
 			r.Mount("/transactions", chi.NewRouter())
 			r.Mount("/import", chi.NewRouter())
 		})
