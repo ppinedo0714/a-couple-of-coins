@@ -34,3 +34,6 @@ Thumbs.db
 *.egg-info/
 .pytest_cache/
 .mypy_cache/
+
+# Claude
+.claude/settings.local.json

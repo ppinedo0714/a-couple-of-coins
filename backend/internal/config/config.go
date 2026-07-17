@@ -17,6 +17,7 @@ type Config struct {
 	GitHubClientSecret   string
 	PredictionsServiceURL string
 	FrontendURL          string
+	BackendURL           string
 }
 
 func Load() (*Config, error) {
@@ -33,6 +34,7 @@ func Load() (*Config, error) {
 		GitHubClientSecret:   os.Getenv("GITHUB_CLIENT_SECRET"),
 		PredictionsServiceURL: getEnv("PREDICTIONS_SERVICE_URL", "http://localhost:8001"),
 		FrontendURL:          getEnv("FRONTEND_URL", "http://localhost:3000"),
+		BackendURL:           getEnv("BACKEND_URL", "http://localhost:8000"),
 	}
 
 	if err := cfg.validate(); err != nil {

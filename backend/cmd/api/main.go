@@ -32,12 +32,12 @@ func main() {
 	googleCfg := auth.GoogleConfig(
 		cfg.GoogleClientID,
 		cfg.GoogleClientSecret,
-		cfg.FrontendURL+"/api/v1/auth/oauth/google/callback",
+		cfg.BackendURL+"/api/v1/auth/oauth/google/callback",
 	)
 	githubCfg := auth.GitHubConfig(
 		cfg.GitHubClientID,
 		cfg.GitHubClientSecret,
-		cfg.FrontendURL+"/api/v1/auth/oauth/github/callback",
+		cfg.BackendURL+"/api/v1/auth/oauth/github/callback",
 	)
 
 	authHandler := handlers.NewAuthHandler(userRepo, cfg.JWTSecret, cfg.FrontendURL, googleCfg, githubCfg)
