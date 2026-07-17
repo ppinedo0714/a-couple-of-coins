@@ -112,3 +112,5 @@ See `../../.env.example` for the full list. Key variables:
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google OAuth app credentials |
 | `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | GitHub OAuth app credentials |
 | `PREDICTIONS_SERVICE_URL` | Base URL of the Python prediction service |
+| `FRONTEND_URL` | Frontend origin; used for CORS and to redirect back to the app after OAuth login |
+| `BACKEND_URL` | Backend's own public URL; used to build the OAuth provider callback URL (must match the redirect URI registered with Google/GitHub) |
