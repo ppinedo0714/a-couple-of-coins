@@ -50,13 +50,16 @@ backend/
 │   │   ├── transactions.go
 │   │   └── import_jobs.go
 │   ├── services/
+│   │   ├── auth.go              ← business logic for register/login/refresh/logout/OAuth/password
 │   │   ├── accounts.go
 │   │   ├── transactions.go
 │   │   ├── groups.go            ← business logic for both groups and categories
 │   │   ├── importer/
 │   │   │   └── csv.go           ← parse CSV, normalize rows, bulk-insert via repository
-│   │   └── predictor/
-│   │       └── client.go        ← HTTP client for the Python prediction service
+│   │   ├── predictor/
+│   │   │   └── client.go        ← HTTP client for the Python prediction service
+│   │   └── email/
+│   │       └── client.go        ← HTTP client for the transactional email provider (password reset)
 │   └── handlers/
 │       ├── auth.go
 │       ├── accounts.go
@@ -114,14 +117,38 @@ Every `up` migration has a corresponding `down` in the same file (`-- +goose Up`
 
 ## Rate Limiting
 
-`httprate` middleware wraps the auth route group (`POST /auth/register`, `POST /auth/login`, `POST /auth/refresh`) in `cmd/api/main.go`, ahead of the JWT auth middleware (that group is otherwise unauthenticated, so it can't be gated by user identity). Two limiters apply together:
+`httprate` middleware wraps the auth route group (`POST /auth/register`, `POST /auth/login`, `POST /auth/refresh`, `POST /auth/password/reset/request`, `POST /auth/password/reset/confirm`) in `cmd/api/main.go`, ahead of the JWT auth middleware (that group is otherwise unauthenticated, so it can't be gated by user identity). Two limiters apply together:
 
 | Scope | Limit | Key |
 |-------|-------|-----|
 | Per IP | 20 requests / 5 min | `httprate.KeyByIP` |
-| Per email | 5 requests / 15 min | request body's `email` field (register/login only — `refresh` has no email, IP limit applies alone) |
+| Per email | 5 requests / 15 min | request body's `email` field (`register`, `login`, `password/reset/request` only — `refresh` and `password/reset/confirm` have no email field, IP limit applies alone) |
+
+`POST /auth/password/change` and `POST /auth/password/set` sit behind the same per-IP limiter too, even though they're authenticated (unlike the rest of this group) — `change` accepts a `current_password`, which makes it a password-guessing oracle no different in kind from `login`, so it gets the same IP-based guard rather than being left unlimited on the assumption that a valid session already implies trust.
 
 Either limiter tripping returns `429` with a `Retry-After` header. Limits are in-process, in-memory counters (no Redis or other shared store) — the accepted tradeoff is that a horizontally-scaled deployment (multiple API instances behind a load balancer) would enforce these limits per-instance rather than globally, meaning actual allowed throughput scales with instance count. This is a looser tradeoff than the OAuth `state` cookie's (see `flows.md` §3) or the session/refresh-token design's (see `data-model.md` Key Design Decisions): rate limits are advisory throttling, not a security invariant, so degraded-but-nonzero protection under multiple instances is acceptable. Revisit with a shared store (e.g. Redis) if/when the backend runs as more than one process.
+
+## JWT Signing
+
+Access tokens (`internal/auth/jwt.go`) are signed with HMAC-SHA256 (`HS256`) using `JWT_SECRET`. Verification pins the algorithm explicitly (`jwt.WithValidMethods([]string{"HS256"})`, `golang-jwt/jwt/v5`) rather than trusting the token's own `alg` header — an unpinned parser is vulnerable to alg-confusion attacks (e.g. a forged `alg: none` token, or an RS256 token with the public key fed back in as the HMAC secret). See `flows.md` §4 and `api.md` Authentication.
+
+**Rotating `JWT_SECRET` invalidates every outstanding access token's signature**, but this is a smaller event than it sounds: refresh tokens are opaque random values, hashed and stored in the `sessions` table independent of `JWT_SECRET` (see `data-model.md`), so no session is actually revoked by a rotation. Every logged-in client's next request fails auth-middleware verification (`401`), which triggers the frontend's existing `POST /auth/refresh` fallback (`api.md` Authentication) using the still-valid `refresh_token` cookie, minting a fresh access token under the new secret. Net effect: one extra silent refresh round-trip per client within the next ≤15 minutes, not a forced re-login.
+
+There is no dual-key verification window (old and new secret both accepted during a grace period) — a rotation is a hard cutover to the new secret. This is an accepted v1 limitation: the self-healing refresh path above already means end users see no visible disruption, so the added complexity of multi-key verification isn't justified yet.
+
+## CSV Import Limits
+
+`POST /import/csv` (`flows.md` §5) is guarded by three limits, so an authenticated user can't exhaust memory, disk, or database throughput via CSV upload:
+
+| Limit | Default | Enforced | Failure mode |
+|-------|---------|----------|---------------|
+| File size (`CSV_IMPORT_MAX_FILE_SIZE_BYTES`) | 5 MiB | Synchronously in the handler, via `http.MaxBytesReader`, before any multipart parsing or job row is created | `413 Payload Too Large` |
+| Row count (`CSV_IMPORT_MAX_ROWS`) | 50,000 | In the background goroutine, against a running count as rows are streamed from `csv.Reader` | Import stops mid-stream; job ends `status=failed` with a `row_limit_exceeded` entry in `row_errors`; rows already committed before the cutoff are kept |
+| Concurrent jobs per user | 1 active (`pending`/`processing`) | A partial unique index on `import_jobs(user_id) WHERE status IN ('pending','processing')` — the `INSERT` in `CreateImportJob` either succeeds or violates the index | `409 Conflict` |
+
+Parsing itself is streamed, not buffered — `ProcessCSV` reads one row at a time from `csv.Reader.Read()` and only ever holds one batch (100 rows) in memory before flushing it to the dedup-check-and-insert steps, rather than reading the whole file into a slice up front. This keeps per-import memory bounded by batch size regardless of file size, and is what makes the row-count cap enforceable mid-stream instead of only after a full parse.
+
+The row-count and concurrency limits are the CSV-import analog of the advisory lock guarding `POST /transactions/classify` (`flows.md` §6) and the rate limiting above — each closes a different way an authenticated (or stolen-session) client could otherwise drive unbounded load. See `flows.md` §5 for the full request flow and `data-model.md` `import_jobs` for the partial unique index.
 
 ## Environment Variables
 
@@ -131,11 +158,17 @@ See `../../.env.example` for the full list. Key variables:
 |----------|-------------|
 | `PORT` | Port the API listens on (default: 8000) |
 | `DATABASE_URL` | PostgreSQL connection string |
-| `JWT_SECRET` | Secret for signing JWT tokens (min 32 chars) |
+| `JWT_SECRET` | Secret for signing JWT tokens (min 32 chars). Rotation invalidates outstanding access tokens but not sessions — see JWT Signing above |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google OAuth app credentials |
 | `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | GitHub OAuth app credentials |
 | `PREDICTIONS_SERVICE_URL` | Base URL of the Python prediction service |
 | `PREDICTIONS_TIMEOUT_SECONDS` | Per-batch HTTP timeout for calls to the prediction service from `POST /transactions/classify` (default: 15) |
+| `FRONTEND_URL` | Base origin of the frontend (e.g. `https://app.example.com`) — used to build OAuth redirect targets (`api.md` OAuth endpoints) and the password-reset link (`POST /auth/password/reset/request`), and as the exact `Access-Control-Allow-Origin` value for CORS |
+| `EMAIL_PROVIDER_URL` | Base URL of the transactional email provider's HTTP API, called from `internal/services/email/client.go` |
+| `EMAIL_PROVIDER_API_KEY` | Auth credential for the email provider |
+| `EMAIL_FROM_ADDRESS` | The `From:` address used on all outbound mail (currently: password-reset links only) |
+| `CSV_IMPORT_MAX_FILE_SIZE_BYTES` | Max accepted size of a `POST /import/csv` upload (default: 5242880, i.e. 5 MiB) — see CSV Import Limits above |
+| `CSV_IMPORT_MAX_ROWS` | Max data rows accepted per CSV import (default: 50000) — see CSV Import Limits above |
 
 ## Observability
 

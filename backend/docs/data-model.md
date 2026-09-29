@@ -113,9 +113,11 @@ Central identity table. A user may log in via email/password, OAuth, or both.
 |--------|------|-------|
 | `id` | `uuid` | Generated with `gen_random_uuid()` |
 | `email` | `varchar(255)` | `UNIQUE`; always stored lowercase (see below) |
-| `password_hash` | `varchar(255)` | bcrypt hash; null if user registered via OAuth only |
+| `password_hash` | `varchar(255)` | bcrypt hash; null if user registered via OAuth only and has never set a password |
 | `currency` | `varchar(3)` | ISO 4217 code, e.g. `USD`; `NOT NULL DEFAULT 'USD'`. Set once at registration and never editable afterward — see Key Design Decisions |
 | `created_at` | `timestamptz` | Set on insert, never updated |
+
+`password_hash` is written by `POST /auth/register` (if a password is supplied) and, afterward, only by `POST /auth/password/set` (an OAuth-only account setting its first password), `POST /auth/password/change`, or `POST /auth/password/reset/confirm` (see `api.md`) — never by `PUT /users/me`, which only ever touches `email`.
 
 Email is normalized to lowercase before every write or lookup — `POST /auth/register`, `POST /auth/login`, `PUT /users/me`, and the OAuth callback's email lookup (`flows.md` §3) all lowercase the email first. `jane@example.com` and `Jane@Example.com` are the same account because no differently-cased value is ever stored, not because of a case-insensitive comparison at read time. This means the plain `UNIQUE(email)` constraint is sufficient — no `citext` extension or functional index on `lower(email)` is needed. The tradeoff: a user who types `Jane@Example.com` will see `jane@example.com` everywhere it's displayed (e.g. `GET /users/me`).
 
@@ -192,7 +194,7 @@ A specific spending item under exactly one group (e.g. "Groceries", "Movies" und
 | `name` | `varchar(100)` | e.g. "Groceries", "Movies" |
 | `created_at` | `timestamptz` | |
 
-Unique constraint on `(user_id, group_id, name)` — no duplicate category names within the same group.
+Unique constraint on `(user_id, group_id, name)` — no duplicate category names within the same group. Also `UNIQUE(user_id, id)` — redundant with `id`'s primary-key uniqueness alone, but required so `transactions.category_id` can target `(user_id, id)` as a composite foreign key (see `transactions` below).
 
 `group_id` references `category_groups`, not `categories` itself, so there is no self-reference to misuse — a category can never become another category's parent. The two-level hierarchy is structural, enforced by which table the foreign key targets, rather than a rule checked in application code or a database trigger.
 
@@ -207,7 +209,7 @@ The core table. Every financial event is a transaction row.
 | `id` | `uuid` | |
 | `user_id` | `uuid` | FK → `users.id`, ON DELETE CASCADE |
 | `account_id` | `uuid` | FK → `accounts.id`, ON DELETE RESTRICT |
-| `category_id` | `uuid` | FK → `categories.id`, ON DELETE SET NULL; nullable — always a category, never a group (groups and categories are separate tables) |
+| `category_id` | `uuid` | Composite FK → `categories(user_id, id)`, ON DELETE SET NULL; nullable — always a category, never a group (groups and categories are separate tables) |
 | `amount` | `numeric(15,2)` | Signed: positive = income, negative = expense |
 | `description` | `varchar(500)` | Raw text — e.g. "AMZN MKTP US*RT19B1234" |
 | `merchant_name` | `varchar(255)` | Normalized name set by prediction service on classification; nullable; not writable by the frontend |
@@ -217,6 +219,8 @@ The core table. Every financial event is a transaction row.
 | `dedup_hash` | `varchar(64)` | SHA-256 hex digest of `date + amount + description + account_id`, computed at CSV import time; `null` for `manual` and `bank` rows, which aren't subject to import-dedup |
 | `is_duplicate` | `boolean` | `NOT NULL DEFAULT false`. Set `true` at insert time if a transaction with the same `dedup_hash` already existed for the account. Informational only — duplicates are still inserted, not rejected, so the user can review and delete them (or dismiss the flag) manually. See `flows.md` §5 |
 | `created_at` | `timestamptz` | |
+
+`category_id` is a composite foreign key against `categories(user_id, id)`, not `categories.id` alone, so a transaction's `category_id` and `user_id` must resolve to the same category row or the write is rejected by Postgres — the database enforces same-user ownership directly, without an application-level `SELECT ... WHERE user_id = ?` pre-check on every write path. This closes the same class of gap the `category_groups`/`categories` split already closes structurally (see Key Design Decisions). The service layer catches the resulting constraint violation (Postgres error `23503`) and maps it to `404` for direct writes (`POST`/`PUT /transactions`), or an unmatched/failed classification for the prediction-service write-back — see `api.md` and `flows.md` §6/§7.
 
 Index on `(account_id, dedup_hash)` (non-unique — deliberately so, since a flagged duplicate is a real, kept row, not a rejected insert) makes the per-batch dedup lookup during CSV import cheap. This is an application-level dedup check, not a DB constraint: nothing stops two rows with the same hash existing, by design.
 
@@ -260,9 +264,11 @@ Tracks the status of CSV file uploads. Created when a file is received; updated 
 | `created_at` | `timestamptz` | |
 | `completed_at` | `timestamptz` | Set when status transitions to `done` or `failed` |
 
-Invariant: `rows_total = rows_imported + rows_failed` — every parsed row ends up either inserted (possibly flagged duplicate) or recorded as a failure in `row_errors`, so the gap between `rows_total` and `rows_imported` is always fully explained by `rows_failed`, never a silent drop.
+Invariant: `rows_total = rows_imported + rows_failed` — every parsed row ends up either inserted (possibly flagged duplicate) or recorded as a failure in `row_errors`, so the gap between `rows_total` and `rows_imported` is always fully explained by `rows_failed`, never a silent drop. This invariant still holds when an import is cut short by `CSV_IMPORT_MAX_ROWS` (`architecture.md` CSV Import Limits, `flows.md` §5) — rows read before the cutoff are counted as imported or failed as usual, and the cutoff itself adds one more `row_errors` entry (`reason: "row_limit_exceeded"`) counted in `rows_failed`, so nothing is left unaccounted for.
 
-A `processing` job can also be moved to `failed` by the startup recovery sweep (`flows.md` §5a) if the server restarted mid-import and abandoned it — not only by an in-flight failure during `ProcessCSV` itself.
+A `processing` job can also be moved to `failed` by the startup recovery sweep (`flows.md` §5a) if the server restarted mid-import and abandoned it, or by hitting `CSV_IMPORT_MAX_ROWS` mid-stream (`architecture.md` CSV Import Limits) — not only by an in-flight failure during `ProcessCSV` itself.
+
+**Partial unique index** on `(user_id) WHERE status IN ('pending', 'processing')` — enforces at most one active import job per user at the database level. `CreateImportJob`'s `INSERT` fails with a unique-violation (Postgres `23505`) if the user already has one, which the service maps to a `409` on `POST /import/csv`. This is the same "DB constraint instead of an application-level pre-check" pattern as `categories(user_id, id)` on `transactions.category_id` above — a check-then-insert race between two near-simultaneous requests can't slip past it the way a separate `SELECT` could.
 
 ## Key Design Decisions
 
@@ -278,8 +284,12 @@ A `processing` job can also be moved to `failed` by the startup recovery sweep (
 
 **`category_id` is nullable** — transactions enter the system uncategorized (`classified = false`). The prediction service assigns `merchant_name` and `category_id` asynchronously. Users can also assign categories manually at any time. It always references `categories`, never `category_groups` — a transaction can't be tagged at the group level, only at the specific-category level.
 
+**`category_id` ownership is a composite foreign key, not an application-level check** — `transactions.category_id` references `categories(user_id, id)` rather than `categories.id` alone (backed by `UNIQUE(user_id, id)` on `categories`), so no manual write, update, or prediction-service write-back can attach a category belonging to a different user without failing the constraint. The service layer catches that failure (Postgres error `23503`) and turns it into a `404` or a failed-classification count, rather than pre-checking ownership with a separate query on every write.
+
 **Groups and categories are separate tables, not a self-referencing hierarchy** — `category_groups` and `categories` split what used to be one table with a nullable `parent_id`. This makes the two-level hierarchy structural instead of a rule enforced by application code or a database trigger: a category's `group_id` targets `category_groups`, so a 3-level chain isn't just disallowed, it's impossible to construct. It also lets `color` be a plain `NOT NULL` column on `category_groups` instead of a conditionally-relevant field shared across two different "kinds" of row, and reduces both uniqueness constraints to ordinary `UNIQUE`s with no NULL-comparison edge case to work around.
 
 **Balance is anchored to user-entered checkpoints, not derived from full transaction history** — `accounts` has no stored `balance` column. Current balance is always `latest checkpoint + transactions since`, computed at read time. A transaction write only ever touches the `transactions` table — no cross-table balance bookkeeping on insert/update/delete, and no risk of a stored balance drifting from what the transactions actually say.
+
+**Password-reset tokens are stateless and self-invalidating, not stored server-side** — like the OAuth `state` token (`flows.md` §3), a reset token is a signed, self-contained value (HMAC over `{userID, purpose: "password_reset", exp, pwd_fp}`, ~30 min expiry) rather than a row in a table, so no migration or cleanup job is needed for it. `pwd_fp` is a short fingerprint derived from the user's `password_hash` at the moment the token was issued; verifying a token recomputes the fingerprint from the user's *current* `password_hash` and rejects a mismatch. Since any successful password write (`set`, `change`, or a prior `reset/confirm`) changes `password_hash`, this makes every previously-issued token invalid the instant the password actually changes, without needing a `used`/`revoked` column — the same property a stored, single-use token would have, at the cost of one extra hash comparison instead of a table lookup. See `api.md` `POST /auth/password/reset/request` / `reset/confirm` and `flows.md` §2d/§2e.
 
 **Checkpoints double as reconciliation, not just history** — because `balance_checkpoints.expected_balance` records what the system would have calculated at that moment, the gap between it and the user-stated `balance` is a first-class, visible number (`discrepancy`, surfaced by `POST`/`GET /accounts/:id/checkpoints`) instead of a silent correction. Checkpoints are append-only and non-decreasing in date, which keeps "a reconciled period never retroactively changes" simple to reason about — there's no case where inserting or deleting a checkpoint reopens a period that was already closed.

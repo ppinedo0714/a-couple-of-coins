@@ -14,6 +14,7 @@ The API uses two **httpOnly cookies**, both set by the backend on successful log
 A third, narrower-purpose cookie, `oauth_state`, is set only for the duration of an OAuth redirect round-trip — see `GET /auth/oauth/google` below.
 
 - Every authenticated endpoint (`Auth required` below) checks only the `token` cookie — a valid, unexpired JWT signature is sufficient; there's no database lookup per request. This makes auth checks cheap but means revoking access is not instantaneous: see the bounded revocation window below.
+- Access tokens are signed with HMAC-SHA256 (`HS256`) using `JWT_SECRET`. Verification pins the algorithm explicitly (`golang-jwt/jwt/v5`'s `jwt.WithValidMethods([]string{"HS256"})`) rather than trusting the token's own `alg` header — this closes the classic alg-confusion attack class (e.g. an attacker crafting an `alg: none` or RS256-with-public-key-as-HMAC-secret token). See `flows.md` §4 and `architecture.md` JWT Signing for the `JWT_SECRET` rotation story.
 - `refresh_token` is scoped to `Path=/api/v1/auth` — the browser only ever sends it to auth endpoints (`/auth/refresh`, `/auth/logout`, `/auth/logout/all`, `/auth/sessions`), not to every request. It is validated against the `sessions` table (see `data-model.md`), which is what makes it actually revocable.
 - Neither token is returned in a JSON response body.
 - CORS is configured with `Access-Control-Allow-Credentials: true` and an exact `Access-Control-Allow-Origin` (no wildcard).
@@ -41,7 +42,8 @@ All error responses use the same JSON shape:
 | `401` | Not authenticated — missing or invalid auth cookie |
 | `404` | Resource not found or not owned by the authenticated user |
 | `409` | Conflict — e.g. duplicate email, account has transactions, duplicate group or category name, OAuth identity already linked to another user |
-| `429` | Rate limited — `POST /auth/register`, `POST /auth/login`, `POST /auth/refresh` only. Response includes a `Retry-After` header (seconds). See `architecture.md` Rate Limiting |
+| `429` | Rate limited — `POST /auth/register`, `POST /auth/login`, `POST /auth/refresh`, `POST /auth/password/reset/request`, `POST /auth/password/reset/confirm`, `POST /auth/password/change`, `POST /auth/password/set` only. Response includes a `Retry-After` header (seconds). See `architecture.md` Rate Limiting |
+| `413` | Payload too large — `POST /import/csv` only, file exceeds `CSV_IMPORT_MAX_FILE_SIZE_BYTES`. See `architecture.md` CSV Import Limits |
 | `500` | Internal server error — logged server-side; generic message returned to client |
 
 **Exception:** the OAuth callback endpoints (`GET /auth/oauth/:provider/callback`) never return a JSON error body — by the time an error is known, the browser is mid-redirect from the OAuth provider, not making a fetch the frontend can inspect. Errors there are instead surfaced as a `302` redirect to the frontend with an `error` query param (e.g. `/login?error=oauth_email_conflict`); see the endpoint docs below.
@@ -138,6 +140,7 @@ Before anything else, this endpoint validates `state`'s signature and expiry, th
 **Response `302` (login/signup, `intent=login`)**
 - Success — an existing `oauth_connections` match, or no user with this email exists yet (a new user is created): redirects to `<frontend-url>/login?oauth=success`, setting the `token` and `refresh_token` cookies (see Authentication above).
 - Conflict — no `oauth_connections` match, but the email already belongs to an existing user (password-only, or linked to a different provider): redirects to `<frontend-url>/login?error=oauth_email_conflict`. No cookie is set, no user is created or modified. The user must log in with their existing method and link this provider from settings (`GET /auth/oauth/google/link` below).
+- Unverified email — no `oauth_connections` match, and the provider reports the profile email as unverified (`email_verified: false`, or GitHub's per-address `verified` flag `false`): redirects to `<frontend-url>/login?error=oauth_email_unverified`. No cookie is set, no user is created or modified — the email is never even checked against existing accounts, since an unverified provider email isn't trustworthy enough to match or create with. The user should verify the address with the provider, or use a different sign-in method. See `flows.md` §3.
 
 **Response `302` (linking, `intent=link`, requires the initiating request to have been authenticated)**
 - Success: creates an `oauth_connections` row for the already-logged-in user, redirects to `<frontend-url>/settings?oauth=linked`.
@@ -218,6 +221,77 @@ Auth required. Revokes a single session — "log out this device" for a session 
 
 ---
 
+### `POST /auth/password/set`
+Auth required. Sets a password for an account that doesn't have one yet — the OAuth-only-signup path to enabling password login alongside (or instead of) OAuth. Use `POST /auth/password/change` instead if the account already has a password (`GET /users/me`'s `has_password` field tells the frontend which to call).
+
+**Request**
+```json
+{
+  "new_password": "minimum8chars"
+}
+```
+
+**Response `204`** — no body. Does not affect any existing session — the caller stays logged in.
+
+**Errors:** `400` invalid input, `409` account already has a password, `429` rate limited (per-IP only, see Error Responses above)
+
+---
+
+### `POST /auth/password/change`
+Auth required. Changes the password on an account that already has one.
+
+**Request**
+```json
+{
+  "current_password": "oldpassword123",
+  "new_password": "newpassword456"
+}
+```
+
+**Response `204`** — no body. On success, revokes every session for this user *except* the one making the request (same effect as `POST /auth/logout/all`, minus the caller's own session) — every other device is signed out, but the caller isn't.
+
+**Errors:** `400` invalid input, `401` `current_password` incorrect (or not authenticated, same as any other endpoint), `409` account has no password yet — use `POST /auth/password/set`, `429` rate limited (per-IP only, see Error Responses above)
+
+---
+
+### `POST /auth/password/reset/request`
+No auth required. Starts the "forgot password" flow: if the given email belongs to an account with a password, emails a time-limited reset link (`<frontend-url>/reset-password?token=...`) to it via `internal/services/email/client.go`.
+
+**Request**
+```json
+{
+  "email": "user@example.com"
+}
+```
+
+**Response `200`** — always the same response, regardless of whether the email exists, belongs to an OAuth-only account with no password, or a reset was actually sent, so the endpoint can't be used to enumerate registered emails:
+```json
+{ "message": "If an account with a password exists for that email, a reset link has been sent." }
+```
+
+The reset token is a signed, self-contained value (not stored server-side) — see `data-model.md` Key Design Decisions ("Password-reset tokens are stateless and self-invalidating") and `flows.md` §2d.
+
+**Errors:** `400` invalid input, `429` rate limited (per-IP and per-email, see Error Responses above)
+
+---
+
+### `POST /auth/password/reset/confirm`
+No auth required. Completes the "forgot password" flow using the token emailed by the request step above.
+
+**Request**
+```json
+{
+  "token": "<opaque signed token from the email link>",
+  "new_password": "newpassword456"
+}
+```
+
+**Response `204`** — no body. Revokes **every** session for the user (not "every session but this one" — there is no authenticated caller session here, since this endpoint isn't authenticated, and the flow is a recovery path that should assume the account may have been compromised). The user must log in again afterward; this endpoint does not itself set cookies or log the user in.
+
+**Errors:** `400` invalid input, invalid/expired token, or token's password fingerprint stale (see `data-model.md`) — all three are reported identically to avoid distinguishing "expired" from "already used" from "malformed" for an attacker; `429` rate limited (per-IP only, see Error Responses above)
+
+---
+
 ## Users
 
 ### `GET /users/me`
@@ -235,7 +309,7 @@ Auth required. Returns the current user's profile.
 }
 ```
 
-`oauth_providers` lists which providers (`google`, `github`) the account has linked, from `oauth_connections` — drives whether the settings page offers "Link Google" or shows it as already connected. `has_password` is `false` for accounts created via OAuth that have never set a password, e.g. to decide whether to show a "password login" option at all. `currency` (ISO 4217, e.g. `USD`) is set once at registration (defaults to `USD`) and applies to all of the user's accounts — see `data-model.md` `users.currency`.
+`oauth_providers` lists which providers (`google`, `github`) the account has linked, from `oauth_connections` — drives whether the settings page offers "Link Google" or shows it as already connected. `has_password` is `false` for accounts created via OAuth that have never set a password — it drives both whether to show a "password login" option at all, and which endpoint a settings page's password form should call: `POST /auth/password/set` when `false`, `POST /auth/password/change` when `true`. `currency` (ISO 4217, e.g. `USD`) is set once at registration (defaults to `USD`) and applies to all of the user's accounts — see `data-model.md` `users.currency`.
 
 ---
 
@@ -631,7 +705,7 @@ Auth required. Create a transaction manually.
 }
 ```
 
-`category_id` is optional. `amount` is signed (negative = expense).
+`category_id` is optional. If provided, it must belong to a category owned by the current user — enforced at the database level via a composite foreign key (see `data-model.md` `transactions.category_id`), not a separate pre-check; a `category_id` belonging to another user is rejected the same way a nonexistent one is. `amount` is signed (negative = expense).
 
 The backend sets `source = "manual"` and `classified = true` on creation — the user has already described the transaction, so it does not need prediction-service processing. `merchant_name` is left null for manually-created transactions. These fields are not accepted from the request body.
 
@@ -639,7 +713,7 @@ The account's current balance reflects this transaction immediately — balance 
 
 **Response `201`** — created transaction object
 
-**Errors:** `400`, `404` account not found
+**Errors:** `400`, `404` account not found, or `category_id` not found or not owned by user
 
 ---
 
@@ -665,7 +739,7 @@ Auth required. Update a transaction. Common use: assign or change a category.
 }
 ```
 
-Pass `"category_id": null` explicitly to remove the category assignment.
+Pass `"category_id": null` explicitly to remove the category assignment. A non-null `category_id` must belong to the current user, enforced the same way as on creation (see `POST /transactions`) — a `category_id` belonging to another user, or a nonexistent one, is rejected as `404`. `account_id` is not an accepted field on this endpoint — a transaction's account cannot be changed after creation.
 
 `category_id` and `description` may always be edited. `amount` and `date` may only be changed if the transaction's **current** `date` is after the account's latest checkpoint — changing either field on a transaction in a closed period is rejected, since it would silently fail to affect the account's already-reconciled balance.
 
@@ -673,7 +747,7 @@ Pass `"category_id": null` explicitly to remove the category assignment.
 
 **Response `200`** — updated transaction object
 
-**Errors:** `400`, `404`, `409` transaction is in a closed period (`date` at or before the account's latest checkpoint) and `amount` or `date` was included in the request
+**Errors:** `400`, `404` (including a `category_id` not found or not owned by user), `409` transaction is in a closed period (`date` at or before the account's latest checkpoint) and `amount` or `date` was included in the request
 
 ---
 
@@ -692,11 +766,11 @@ Auth required. Sends all unclassified transactions (for the current user) to the
 **Request** — no body required (classifies all unclassified transactions for the user)
 
 The backend:
-1. Acquires a Postgres advisory lock scoped to the user's ID (`pg_try_advisory_lock`). If another classify run for this user already holds it (a double-click, two open tabs), the request fails immediately with `409` instead of duplicating the work — see Errors below.
+1. Checks out a dedicated connection from the pool and acquires a Postgres advisory lock scoped to the user's ID (`pg_try_advisory_lock`) on it — advisory locks are connection-scoped, so this run holds that one connection for its full duration rather than borrowing a fresh one per query (see `flows.md` §6 for why). If another classify run for this user already holds the lock (a double-click, two open tabs), the request fails immediately with `409` instead of duplicating the work — see Errors below.
 2. Fetches all transactions where `classified = false` for the user, and all categories owned by the user.
 3. Splits the transactions into batches of 100 and, for each batch, POSTs it (with the full category list) to `services/predictions` (see [Prediction Service Internal Contract](#prediction-service-internal-contract)) under a `PREDICTIONS_TIMEOUT_SECONDS` timeout (default 15s — see `architecture.md` Environment Variables).
 4. For each batch that succeeds, writes back the returned `category_id` and `merchant_name` and sets `classified = true` for each matched transaction, committing before moving to the next batch. A batch that times out or errors is skipped — its transactions stay `classified = false` and are counted in `failed` — and processing continues with the remaining batches, so one bad batch doesn't discard progress already committed from earlier ones.
-5. Releases the advisory lock (always — including on error, timeout, or panic).
+5. Releases the advisory lock and returns the pinned connection to the pool (always — including on error, timeout, or panic).
 
 **Response `200`**
 ```json
@@ -727,6 +801,11 @@ Auth required. Upload a CSV file to import transactions.
 Expected CSV columns (flexible — mapped during parsing):
 `date`, `description`, `amount`
 
+The upload is subject to three limits, all enforced before or during processing rather than left unbounded — see `architecture.md` CSV Import Limits and `flows.md` §5 for the full rationale:
+- The file itself may not exceed `CSV_IMPORT_MAX_FILE_SIZE_BYTES` (default 5 MiB), checked before parsing starts.
+- The file may not contain more than `CSV_IMPORT_MAX_ROWS` (default 50,000) rows; a file that does has its import stopped mid-stream, ending as a `failed` job (see `GET /import/jobs/:id`) rather than silently truncating.
+- Only one import job (`pending` or `processing`) may be active per user at a time.
+
 **Response `202`**
 ```json
 {
@@ -734,6 +813,8 @@ Expected CSV columns (flexible — mapped during parsing):
   "status": "pending"
 }
 ```
+
+**Errors:** `400` invalid input (missing `file` or `account_id`), `404` account not found or not owned by user, `409` an import job is already in progress for this user, `413` file exceeds `CSV_IMPORT_MAX_FILE_SIZE_BYTES`
 
 ---
 
@@ -853,3 +934,4 @@ The backend sends unclassified transactions alongside the user's full category l
 - `category_id` must reference one of the UUIDs sent in the request's `categories` list.
 - `merchant_name` is a normalized, human-readable name derived from the raw `description`.
 - If the service cannot classify a transaction, omit its entry from `predictions` — the backend will leave it `classified = false`.
+- The backend does not trust this contractually — writing a prediction back relies on the same `categories(user_id, id)` composite foreign key as any other write (see `data-model.md`). A `category_id` that isn't actually one of the user's categories (a misbehaving service, or a category deleted mid-run) fails that constraint, and the transaction is counted in `failed` rather than written — the same outcome as a batch timeout. See `flows.md` §6.

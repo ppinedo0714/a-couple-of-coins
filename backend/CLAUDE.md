@@ -24,6 +24,7 @@ Full architecture docs live in `docs/`:
 | [`docs/data-model.md`](./docs/data-model.md) | ERD and field-by-field table descriptions |
 | [`docs/api.md`](./docs/api.md) | Complete route reference with request/response shapes |
 | [`docs/flows.md`](./docs/flows.md) | Sequence diagrams for auth, CSV import, and classification |
+| [`docs/open-issues.md`](./docs/open-issues.md) | Known, deliberately deferred gaps and rejected design alternatives |
 
 ## Structure
 
